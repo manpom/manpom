@@ -686,6 +686,7 @@
     MAIN_TABS.forEach(t => $(t).classList.toggle('active', t === id));
     mainTabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === id));
     currentEventId = null;
+    if(typeof renderAll === 'function') renderAll();
     window.scrollTo({ top: 0, behavior:'instant' in window ? 'instant' : 'auto' });
   }
   window.showMainTab = showMainTab;
@@ -1488,23 +1489,380 @@
     }).join('');
   }
 
-  function renderRun2km(){
+  // ---------------------------------------------------------------
+  // 코치 탭: D-day / 오늘의 훈련 / 전망 / 신뢰도 / 주간 진행률 / 코멘트
+  // 여기 있는 계산은 전부 경량 참고용 지표다. 확정된 예측/처방 알고리즘이 아니다.
+  // ---------------------------------------------------------------
+  function renderCoachDday(){
+    const box = $('coach-dday');
+    const d = examDate ? r2DaysUntil(examDate) : null;
+    const ddayText = d === null ? '—' : (d === 0 ? 'D-DAY' : (d > 0 ? 'D-' + d : 'D+' + Math.abs(d)));
+    const ddayCell = examDate
+      ? `<div class="hero-cell accent"><div class="hero-label">시험일까지</div><div class="hero-figure lg">${ddayText}</div></div>`
+      : `<div class="hero-cell"><div class="hero-label">시험일까지</div><div class="hero-figure" style="color:var(--ink-3); font-size:16px;">시험일 미입력</div></div>`;
+    const dateCell = `<div class="hero-cell"><div class="hero-label">시험일</div><div class="hero-figure" style="font-size:16px;">${examDate || '—'}</div></div>`;
+    box.innerHTML = ddayCell + dateCell;
+  }
+
+  function todaysDailyTraining(){
+    for(const wp of weeklyPlans){
+      const found = wp.days.find(dt => dt.date === todayStr());
+      if(found) return found;
+    }
+    return null;
+  }
+
+  function goToTrainInput(){
+    showMainTab('screen-train');
+    const el = $('w-session');
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+  window.goToTrainInput = goToTrainInput;
+
+  function renderCoachToday(){
+    const box = $('coach-today');
+    const planned = todaysDailyTraining();
     const best = getBestR2();
-    renderR2Hero(best, run2kmGoal);
+
+    if(planned){
+      box.innerHTML = `
+        <div class="plan-day plan-day--top">
+          <div class="plan-day-head"><span class="dow">오늘 · ${planned.sessionType || '훈련'}</span><span class="kind">${planned.status === 'completed' ? '완료' : '예정'}</span></div>
+          <div class="plan-day-body">
+            <div class="plan-detail-row"><span class="k">거리</span><span class="v">${planned.plannedDist ?? '—'}</span></div>
+            <div class="plan-detail-row"><span class="k">페이스</span><span class="v">${planned.plannedPaceSec ? planned.plannedPaceSec + '초' : '—'}</span></div>
+            <div class="plan-detail-row"><span class="k">세트</span><span class="v">${planned.plannedSets ?? '—'}</span></div>
+            <div class="plan-detail-row"><span class="k">회복</span><span class="v">${planned.plannedRest ?? '—'}</span></div>
+            <button class="btn" style="margin-top:12px;" onclick="goToTrainInput()">완료 → 결과 입력</button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    if(!best){
+      box.innerHTML = '<p class="coach-empty">아직 시험 2km 기록이 없어요. [기록] 탭에서 첫 기록을 입력하면 오늘의 훈련 추천을 볼 수 있어요.</p>';
+      return;
+    }
+
+    const picks = buildRecommendations(best, run2kmGoal, run2kmInfo);
+    const top = picks[0];
+    const research = SESSION_RESEARCH[top.key];
+    box.innerHTML = `
+      <div class="plan-day plan-day--top">
+        <div class="plan-day-head"><span class="dow">오늘의 추천 훈련</span><span class="kind">${top.role}</span></div>
+        <div class="plan-day-body">
+          <div class="name">${research.name}</div>
+          <div class="plan-detail-row"><span class="k">거리</span><span class="v">${top.dist}</span></div>
+          <div class="plan-detail-row"><span class="k">페이스/강도</span><span class="v">${top.paceText}</span></div>
+          <div class="plan-detail-row"><span class="k">세트/반복</span><span class="v">${top.sets}</span></div>
+          <div class="plan-detail-row"><span class="k">회복</span><span class="v">${top.rest}</span></div>
+          <button class="btn" style="margin-top:12px;" onclick="goToTrainInput()">완료 → 결과 입력</button>
+          <p class="plan-purpose">아직 주간 계획이 없어서 AI 추천 훈련을 오늘의 훈련으로 보여드려요. [훈련] 탭에서 다른 추천도 볼 수 있어요.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  function currentWeekRange(){
+    const tz = new Date().getTimezoneOffset() * 60000;
+    const now = new Date(new Date() - tz);
+    const day = now.getDay();
+    const mondayOffset = (day === 0 ? -6 : 1 - day);
+    const monday = new Date(now); monday.setDate(now.getDate() + mondayOffset); monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    const fmt = d => d.toISOString().slice(0,10);
+    return { start: fmt(monday), end: fmt(sunday) };
+  }
+
+  function renderCoachWeek(){
+    const box = $('coach-week');
+    const { start, end } = currentWeekRange();
+    const completed = run2kmWorkoutLog.filter(w => w.date >= start && w.date <= end).length;
+    const thisWeekPlan = weeklyPlans.find(wp => wp.weekStartDate === start);
+    const target = thisWeekPlan ? thisWeekPlan.days.length : (run2kmInfo ? run2kmInfo.weeklyFreq : null);
+
+    let bar = '';
+    if(target){
+      const pct = Math.min(100, Math.round(completed / target * 100));
+      bar = `<div class="week-progress-bar"><div style="width:${pct}%;"></div></div>`;
+    }
+    box.innerHTML = `
+      <div class="ai-facts">
+        <div><span class="k">이번 주 완료한 훈련</span><span class="v">${completed}${target ? ' / ' + target + '회' : '회'}</span></div>
+      </div>
+      ${bar}
+      ${!target ? '<p class="ai-caveat">[훈련] 탭의 "훈련 정보"에 주당 러닝 가능 횟수를 입력하면 진행률이 표시돼요.</p>' : ''}
+    `;
+  }
+
+  // 시험 기록 2건 이상 + 시험일 입력 시에만 계산되는 "참고용" 단순 선형 추정.
+  // 최초 기록→최근 기록의 변화율(초/일)을 시험일까지 그대로 연장할 뿐이며,
+  // 컨디션·부상·훈련 내용 변화는 전혀 반영하지 않는다.
+  // 목표 달성 가능성을 확정하거나 훈련 강도/훈련량을 정하는 근거로 사용해서는 안 된다.
+  function computeProjection(){
+    if(run2kmRecords.length < 2 || !examDate) return null;
+    const sorted = [...run2kmRecords].sort((a,b) => a.date.localeCompare(b.date));
+    const first = sorted[0], latest = sorted[sorted.length - 1];
+    const dayDiff = (new Date(latest.date) - new Date(first.date)) / 86400000;
+    if(dayDiff <= 0) return null;
+    const changePerDay = (latest.totalSec - first.totalSec) / dayDiff;
+    const daysToExam = r2DaysUntil(examDate);
+    if(daysToExam === null || daysToExam <= 0) return null;
+    const projectedSec = latest.totalSec + changePerDay * daysToExam;
+    return { projectedSec, changePerDay, daysToExam };
+  }
+
+  function projectionHtml(){
+    if(run2kmRecords.length < 2){
+      return '<p class="empty-note">시험 2km 기록이 2건 이상 쌓이면 참고용 전망을 보여드려요.</p>';
+    }
+    if(!examDate){
+      return '<p class="empty-note">시험일을 입력하면 참고용 전망을 보여드려요.</p>';
+    }
+    const proj = computeProjection();
+    if(!proj){
+      return '<p class="empty-note">아직 전망을 계산하기에 데이터가 충분하지 않아요.</p>';
+    }
+    const dir = proj.changePerDay < 0 ? '향상' : (proj.changePerDay > 0 ? '저하' : '유지');
+    let goalLine = '';
+    if(run2kmGoal){
+      const gapSec = Math.round(proj.projectedSec - (run2kmGoal.min * 60 + run2kmGoal.sec));
+      goalLine = `<div><span class="k">목표 기록 대비 단순 추정 차이</span><span class="v">${gapSec > 0 ? '+' : ''}${gapSec}초</span></div>`;
+    }
+    return `
+      <div class="ai-label">단순 선형 추정 · 참고용</div>
+      <div class="ai-facts">
+        <div><span class="k">최근 변화 추세</span><span class="v">일당 ${Math.abs(proj.changePerDay).toFixed(2)}초 ${dir}</span></div>
+        <div><span class="k">시험일(D-${proj.daysToExam}) 단순 추정 기록</span><span class="v">${formatSecToMMSS(proj.projectedSec)}</span></div>
+        ${goalLine}
+      </div>
+      <p class="ai-caveat">이 값은 최초 기록 → 최근 기록의 변화율을 시험일까지 단순히 선형 연장한 참고용 추정치일 뿐이에요. 목표 달성 가능성을 확정하는 판단이나 훈련 강도·훈련량을 정하는 근거로 사용하지 마세요. 컨디션, 부상, 훈련 내용 변화는 반영되지 않아요.</p>
+    `;
+  }
+
+  function renderCoachProjection(){ $('coach-projection').innerHTML = projectionHtml(); }
+
+  // 데이터 개수만 반영하는 단순 4단계 신뢰도. 정밀한 퍼센트 등으로 과신을 주지 않는다.
+  function computeConfidence(){
+    const examCount = run2kmRecords.length;
+    const workoutCount = run2kmWorkoutLog.length;
+    const total = examCount + workoutCount;
+    if(total === 0) return { label:'데이터 부족', chipClass:'chip-bad', detail:'아직 입력된 시험 기록이나 훈련 기록이 없어요.' };
+    if(total < 3) return { label:'참고용', chipClass:'chip-warn', detail:`시험 기록 ${examCount}건, 훈련 기록 ${workoutCount}건으로 아직 데이터가 적어요. 참고용으로만 봐주세요.` };
+    if(total < 8) return { label:'보통', chipClass:'chip-mid', detail:`시험 기록 ${examCount}건, 훈련 기록 ${workoutCount}건이 쌓였어요. 조금 더 쌓이면 신뢰도가 올라가요.` };
+    return { label:'충분', chipClass:'chip-good', detail:`시험 기록 ${examCount}건, 훈련 기록 ${workoutCount}건으로 분석에 참고할 데이터가 충분한 편이에요.` };
+  }
+
+  function renderCoachConfidence(){
+    const c = computeConfidence();
+    $('coach-confidence').innerHTML = `<span class="chip ${c.chipClass}">${c.label}</span> <p class="ai-text" style="margin-top:8px;">${c.detail}</p>`;
+  }
+
+  function buildCoachSummary(){
+    const best = getBestR2();
+    const latestWorkout = getLatestWorkout();
+    if(!best && !latestWorkout){
+      return '아직 입력된 기록이 없어요. [기록] 탭에서 시험 2km 기록을, [훈련] 탭에서 훈련 결과를 입력하면 여기에 코치의 코멘트가 표시돼요.';
+    }
+    const parts = [];
+    if(best){
+      const a = analyzeLaps(getLatestR2().laps);
+      parts.push(`최근 시험 기록은 ${a.pattern} 패턴이에요.`);
+    }
+    if(latestWorkout){
+      const analysis = analyzeWorkoutEntry(latestWorkout);
+      parts.push(analysis.pattern || (latestWorkout.result === 'success' ? '가장 최근 훈련은 전 구간 안정적으로 수행됐어요.' : '가장 최근 훈련의 세부 패턴은 기록이 부족해 특정하기 어려워요.'));
+    }
+    const conf = computeConfidence();
+    parts.push(`현재 분석 신뢰도는 "${conf.label}" 수준이에요.`);
+    return parts.join(' ');
+  }
+
+  function renderCoachSummary(){
+    $('coach-summary').innerHTML = `<p class="ai-text">${buildCoachSummary()}</p>`;
+  }
+
+  // ---------------------------------------------------------------
+  // 훈련 탭: 예정된 훈련(주간계획) — 알고리즘 미구현이라 지금은 대부분 빈 상태
+  // ---------------------------------------------------------------
+  function renderTrainWeeklyPlan(){
+    const box = $('train-weekly-plan');
+    if(weeklyPlans.length === 0){
+      box.innerHTML = '<p class="empty-note">아직 주간 훈련계획 기능은 준비 중이에요. 지금은 위 AI 추천 훈련을 참고해주세요.</p>';
+      return;
+    }
+    box.innerHTML = weeklyPlans.map(wp => `
+      <div class="panel"><div class="plan-day-body" style="padding:0;">
+        <div class="name">${wp.weekStartDate} 주</div>
+        ${wp.days.map(d => `<div class="plan-detail-row"><span class="k">${d.date}</span><span class="v">${d.sessionType || '미정'} · ${d.status}</span></div>`).join('')}
+      </div></div>
+    `).join('');
+  }
+
+  // ---------------------------------------------------------------
+  // 분석 탭
+  // ---------------------------------------------------------------
+  function renderAnalyzeTrend(){
+    const box = $('analyze-trend');
+    const list = [...run2kmRecords].sort((a,b) => a.date.localeCompare(b.date)).slice(-8);
+    if(list.length === 0){
+      box.innerHTML = '<p class="empty-note">시험 2km 기록을 입력하면 기록 변화 추이를 보여드려요.</p>';
+      return;
+    }
+    const paces = list.map(r => r.totalSec);
+    const max = Math.max(...paces), min = Math.min(...paces);
+    const range = Math.max(max - min, 1);
+    const bars = list.map(r => {
+      const h = 10 + Math.round((r.totalSec - min) / range * 34);
+      return `<div class="trend-bar" style="height:${h}px;" title="${formatSecToMMSS(r.totalSec)}"></div>`;
+    }).join('');
+    const labels = list.map(r => `<span>${r.date.slice(5)}</span>`).join('');
+    box.innerHTML = `
+      <div class="trend-metric">
+        <div class="tm-label">시험 2km 기록 추이 (최근 ${list.length}회 · 막대가 높을수록 느림)</div>
+        <div class="trend-bars">${bars}</div>
+        <div class="trend-labels">${labels}</div>
+      </div>
+    `;
+  }
+
+  function sessionHistoryHtml(sessionKey, label){
+    const hist = getWorkoutHistory(sessionKey);
+    if(hist.length === 0) return `<p class="empty-note">${label} 수행 기록이 아직 없어요.</p>`;
+    const rows = hist.slice(0,6).map(w => {
+      const a = analyzeWorkoutEntry(w);
+      return `<div class="plan-detail-row"><span class="k">${w.date}</span><span class="v">${w.dist}×${w.targetSets}/${w.targetPaceSec}초 · ${a.performanceRate !== null ? a.performanceRate + '%' : '—'} · ${a.paceDiff > 0 ? '+' : ''}${a.paceDiff.toFixed(1)}초</span></div>`;
+    }).join('');
+    return `<div class="panel"><div class="plan-day-body" style="padding:0;"><div class="name" style="margin-bottom:4px;">${label}</div>${rows}</div></div>`;
+  }
+  function renderAnalyzeSessionHistory(){
+    $('analyze-session-history').innerHTML = sessionHistoryHtml('interval', '400m 인터벌') + sessionHistoryHtml('threshold', '역치/지속주');
+  }
+
+  function renderAnalyzePace(){
+    const box = $('analyze-pace');
+    const best = getBestR2();
+    if(!best){ box.innerHTML = '<p class="empty-note">시험 2km 기록을 입력하면 페이스별 수행능력을 보여드려요.</p>'; return; }
+    const current400 = best.totalSec / 5;
+    let html = `<div class="ai-facts"><div><span class="k">현재 400m 평균 페이스</span><span class="v">${Math.round(current400)}초</span></div>`;
+    if(run2kmGoal){
+      const goal400 = (run2kmGoal.min * 60 + run2kmGoal.sec) / 5;
+      html += `<div><span class="k">목표 400m 평균 페이스</span><span class="v">${Math.round(goal400)}초</span></div>
+        <div><span class="k">차이</span><span class="v">${Math.round(current400 - goal400)}초</span></div>`;
+    }
+    html += '</div>';
+    const intervalHist = getWorkoutHistory('interval');
+    if(intervalHist.length){
+      const recentPaces = intervalHist.slice(0,5).map(w => w.actualPaceSec);
+      html += `<p class="ai-text" style="margin-top:10px;">최근 인터벌 훈련 실제 평균 페이스: ${recentPaces.join('초, ')}초</p>`;
+    }
+    box.innerHTML = html;
+  }
+
+  const QUALITY_FLAG_LABELS = { 'stable-success':'안정적 성공', 'shaky-success':'후반 저하 있는 성공', 'early-fail':'초반부터 무너진 실패', 'late-fail':'후반 저하로 인한 실패', 'fail-unknown':'원인 불명 실패' };
+  function renderAnalyzePattern(){
+    const box = $('analyze-pattern');
+    if(run2kmWorkoutLog.length === 0){ box.innerHTML = '<p class="empty-note">훈련 수행 기록을 입력하면 성공/실패 패턴을 보여드려요.</p>'; return; }
+    const successCount = run2kmWorkoutLog.filter(w => w.result === 'success').length;
+    const failCount = run2kmWorkoutLog.length - successCount;
+    const flagCounts = {};
+    run2kmWorkoutLog.forEach(w => {
+      const f = analyzeWorkoutEntry(w).qualityFlag;
+      flagCounts[f] = (flagCounts[f] || 0) + 1;
+    });
+    const flagRows = Object.entries(flagCounts).map(([k,v]) => `<div class="plan-detail-row"><span class="k">${QUALITY_FLAG_LABELS[k] || k}</span><span class="v">${v}회</span></div>`).join('');
+    box.innerHTML = `
+      <div class="ai-facts" style="margin-bottom:10px;">
+        <div><span class="k">성공</span><span class="v">${successCount}회</span></div>
+        <div><span class="k">실패</span><span class="v">${failCount}회</span></div>
+      </div>
+      ${flagRows}
+    `;
+  }
+
+  // 세트별 상세 기록이 있는 최근 훈련들의 후반 저하(lateDrop) 추세만 보는 경량 휴리스틱.
+  // 확정된 진단이 아니라 참고용 가설이다.
+  function computeWeaknessHypothesis(){
+    const hist = run2kmWorkoutLog.filter(w => w.perSetReps && w.perSetReps.length >= 4).slice(-5);
+    if(hist.length < 2) return null;
+    const drops = hist.map(w => analyzeWorkoutEntry(w).lateDrop).filter(v => v !== null);
+    if(drops.length < 2) return null;
+    const avgDrop = avg(drops);
+    if(avgDrop > 2){
+      return `최근 훈련에서 세트 후반부로 갈수록 페이스가 평균 약 ${avgDrop.toFixed(1)}초 느려지는 경향이 반복되고 있어요. 후반 지구력(페이스 유지력)이 약점일 가능성이 있어요.`;
+    }
+    return null;
+  }
+
+  function renderAnalyzeWeakness(){
+    const box = $('analyze-weakness');
+    const hyp = computeWeaknessHypothesis();
+    box.innerHTML = hyp
+      ? `<div class="ai-block" style="padding:0; border:none;"><p class="ai-text">${hyp}</p><p class="ai-caveat">세트별 상세 기록이 쌓일수록 더 정확해지는 참고용 가설이에요. 확정된 진단이 아니에요.</p></div>`
+      : '<p class="empty-note">아직 가설을 세우기에 데이터가 충분하지 않아요. 세트별 실제 기록을 함께 입력하면 더 정확해져요.</p>';
+  }
+
+  function renderAnalyzeProjection(){
+    $('analyze-projection').innerHTML = projectionHtml() + '<p class="ai-caveat">전망이 시간에 따라 어떻게 바뀌었는지에 대한 히스토리는 기록이 더 쌓이면 표시돼요.</p>';
+  }
+
+  function renderAnalyzeConfidence(){
+    const c = computeConfidence();
+    $('analyze-confidence').innerHTML = `
+      <span class="chip ${c.chipClass}">${c.label}</span>
+      <p class="ai-text" style="margin-top:10px;">${c.detail}</p>
+      <p class="ai-caveat">신뢰도는 입력된 기록·훈련 데이터의 양만 반영한 단순 지표이며, 데이터 자체의 정확도나 컨디션 변수는 반영하지 않아요.</p>
+    `;
+  }
+
+  // ---------------------------------------------------------------
+  // 전체 재렌더: 데이터가 바뀔 때마다 4개 탭 전부를 다시 그려서
+  // 탭 간 데이터 불일치를 막는다 (기존 renderRun2km() 패턴을 확장).
+  // ---------------------------------------------------------------
+  function renderAll(){
+    const best = getBestR2();
+
+    if($('exam-date-input')) $('exam-date-input').value = examDate || '';
+    renderCoachDday();
+    renderCoachToday();
+    renderR2Hero(best, run2kmGoal, 'coach-hero');
+    renderCoachProjection();
+    renderCoachConfidence();
+    renderCoachWeek();
+    renderCoachSummary();
+
+    renderMain();
+    renderR2Hero(best, run2kmGoal, 'r2-hero');
     renderGoalInline();
     renderR2AnalysisResult();
-    renderR2AI(best, run2kmGoal, run2kmInfo);
-    renderR2Strategy(best, run2kmGoal);
-    renderR2RecentList();
+    renderExamHistory();
 
-    // 훈련 정보 입력창에 기존 값 반영
+    renderR2AI(best, run2kmGoal, run2kmInfo);
+    renderTrainWeeklyPlan();
+    renderWorkoutHistory();
     if(run2kmInfo){
       $('p-weekly-freq').value = run2kmInfo.weeklyFreq;
       $('p-weekly-vol').value = run2kmInfo.weeklyVolumeKm ?? '';
     }
-  }
 
-  renderMain();
+    renderAnalyzeTrend();
+    renderAnalyzeSessionHistory();
+    renderAnalyzePace();
+    renderAnalyzePattern();
+    renderAnalyzeWeakness();
+    renderAnalyzeProjection();
+    renderAnalyzeConfidence();
+    renderR2Strategy(best, run2kmGoal);
+  }
+  window.renderAll = renderAll;
+
+  $('exam-date-input').addEventListener('change', () => {
+    examDate = $('exam-date-input').value || null;
+    renderAll();
+  });
+
+  renderAll();
 </script>
 </body>
 </html>

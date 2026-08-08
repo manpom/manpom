@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>경찰특공대 승진시험 AI 코치</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #12140F;
+    --ink-2: #2B2E29;
+    --ink-3: #6B6F68;
+    --line: #DADCD4;
+    --line-strong: #B7BAB1;
+    --paper: #F5F5F1;
+    --surface: #FFFFFF;
+    --brand: #0E3B2E;
+    --brand-strong: #0A2C22;
+    --brand-tint: #E6ECE7;
+    --alert: #A6341C;
+    --alert-tint: #F4E3DD;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap{ max-width: 520px; margin: 0 auto; padding: 0 0 40px; }
+
+  .masthead{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 14px 16px;
+    border-bottom: 2px solid var(--brand);
+    background: var(--surface);
+    position: sticky; top:0; z-index: 10;
+  }
+  .mark{ display:flex; align-items:center; gap:8px; }
+  .mark .sq{ width:10px; height:10px; background: var(--brand); }
+  .mark .word{
+    font-family:'Roboto Mono', monospace; font-weight:700; font-size:13px;
+    letter-spacing: 0.04em; text-transform:uppercase;
+  }
+  .masthead .today{ font-family:'Roboto Mono', monospace; font-size:12px; color: var(--ink-3); }
+
+  .screen{ display:none; padding: 16px; }
+  .screen.active{ display:block; }
+
+  .back-btn{
+    background:none; border:none; color: var(--ink-3);
+    font-family:'Inter', sans-serif; font-size:12px; font-weight:600;
+    padding: 0 0 16px; cursor:pointer;
+  }
+  .back-btn:hover{ color: var(--ink); }
+
+  .sec-label{
+    font-size: 11px; font-weight:600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .block{ margin-bottom: 24px; }
+
+  .panel{ background: var(--surface); border: 1px solid var(--line); border-radius: 2px; padding: 16px; margin-bottom: 16px; }
+  .panel--brand{ border-color: var(--brand); }
+  .panel--placeholder{ border-style: dashed; }
+
+  .empty-note{ color: var(--ink-3); font-size: 13px; line-height:1.6; }
+
+  /* 메인 화면: 종목 카드 리스트 */
+  .event-list{ display:flex; flex-direction:column; gap:1px; background: var(--line); border:1px solid var(--line); }
+  .event-card{
+    background: var(--surface);
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 16px; cursor:pointer; border:none; width:100%; text-align:left;
+    font-family:'Inter', sans-serif;
+  }
+  .event-card:hover{ background: var(--brand-tint); }
+  .event-card .no{ font-family:'Roboto Mono', monospace; font-size:11px; color: var(--ink-3); width:20px; flex-shrink:0; }
+  .event-card .name{ font-size:15px; font-weight:600; color: var(--ink); flex:1; }
+  .event-card .meta{ font-family:'Roboto Mono', monospace; font-size:11px; color: var(--ink-3); text-align:right; }
+  .event-card .chev{ margin-left:10px; color: var(--ink-3); font-size:16px; }
+
+  .event-title{ font-size: 20px; font-weight:700; margin: 0 0 4px; }
+  .event-sub{ font-size:12px; color: var(--ink-3); margin: 0 0 20px; }
+
+  .form-grid{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field label{ font-size: 10px; color: var(--ink-3); letter-spacing: 0.03em; text-transform:uppercase; }
+  input[type="date"], input[type="number"], input[type="text"]{
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: 2px;
+    color: var(--ink); font-family: 'Roboto Mono', monospace; font-size: 14px;
+    padding: 9px 10px; width: 100%; outline: none;
+  }
+  input:focus{ border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button{ opacity: 0.5; }
+
+  .btn{
+    margin-top: 12px; width: 100%; background: var(--brand); color: var(--surface); border: none;
+    border-radius: 2px; padding: 12px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight:600;
+    letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer;
+  }
+  .btn:hover{ background: var(--brand-strong); }
+  .btn-outline{ background: transparent; color: var(--ink); border: 1px solid var(--ink); }
+  .btn-outline:hover{ background: var(--ink); color: var(--surface); }
+
+  .error-msg{ color: var(--alert); font-size: 12px; margin-top: 8px; min-height: 14px; }
+
+  table{ width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th{
+    text-align:left; font-weight:600; letter-spacing: 0.04em; text-transform: uppercase;
+    font-size: 10px; color: var(--ink-3); padding: 7px 6px; border-bottom: 1px solid var(--ink);
+  }
+  tbody td{ padding: 9px 6px; border-bottom: 1px solid var(--line); font-family: 'Roboto Mono', monospace; }
+  .del-btn{ background:none; border:none; color: var(--ink-3); cursor:pointer; font-size:14px; padding: 2px 4px; }
+  .del-btn:hover{ color: var(--alert); }
+  .table-scroll{ overflow-x:auto; }
+
+  .goal-summary{ margin-top: 12px; font-size: 12px; color: var(--ink-3); font-family: 'Roboto Mono', monospace; }
+  .goal-summary strong{ color: var(--ink); }
+
+  .locked{ display:flex; gap:10px; align-items:flex-start; color: var(--ink-3); font-size:12.5px; line-height:1.6; }
+  .locked .tag{
+    font-family:'Roboto Mono', monospace; font-size:10px; font-weight:700; letter-spacing:0.04em;
+    background: var(--line); color: var(--ink-2); padding:3px 7px; flex-shrink:0;
+  }
+
+  footer{ margin-top: 12px; text-align:center; color: var(--ink-3); font-size: 11px; line-height:1.6; padding: 8px 0 24px; }
+
+  /* ---------------- 2km 달리기 전용 ---------------- */
+  .hero-row{ display:flex; gap:0; border:1px solid var(--line); margin-bottom:16px; }
+  .hero-cell{ flex:1; padding:14px 12px; border-right:1px solid var(--line); }
+  .hero-cell:last-child{ border-right:none; }
+  .hero-cell.accent{ background: var(--brand-tint); }
+  .hero-label{ font-size:10px; color:var(--ink-3); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px; }
+  .hero-figure{ font-family:'Roboto Mono', monospace; font-weight:700; font-size:22px; color:var(--ink); }
+  .hero-figure.lg{ font-size:30px; }
+  .hero-sub{ font-family:'Roboto Mono', monospace; font-size:11px; color:var(--ink-3); margin-top:2px; }
+
+  .chip{
+    display:inline-block; font-size:11px; font-weight:600; letter-spacing:0.02em;
+    padding:4px 9px; border:1px solid var(--ink); color:var(--ink);
+  }
+  .chip-good{ background: var(--brand); border-color: var(--brand); color:var(--surface); }
+  .chip-mid{ background: var(--surface); border-color: var(--ink); color:var(--ink); }
+  .chip-warn{ background: var(--surface); border-color: var(--alert); color:var(--alert); }
+  .chip-bad{ background: var(--alert); border-color: var(--alert); color:var(--surface); }
+
+  .ai-block{ background: var(--surface); border:1px solid var(--line); padding:16px; margin-bottom:16px; }
+  .ai-block .ai-label{ font-size:10px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--brand); margin-bottom:10px; }
+  .ai-facts{ display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; margin-bottom:12px; font-size:12.5px; }
+  .ai-facts div span.k{ display:block; font-size:10px; color:var(--ink-3); text-transform:uppercase; letter-spacing:0.03em; }
+  .ai-facts div span.v{ font-family:'Roboto Mono', monospace; font-weight:600; color:var(--ink); }
+  .ai-text{ font-size:13px; line-height:1.7; color:var(--ink-2); margin:0 0 10px; }
+  .ai-factors{ list-style:none; margin:0; padding:0; }
+  .ai-factors li{ font-size:12.5px; padding:6px 0; border-top:1px solid var(--line); color:var(--ink-2); }
+  .ai-factors li:first-child{ border-top:none; }
+  .ai-caveat{ font-size:11px; color:var(--ink-3); font-style:italic; margin-top:8px; }
+
+  .plan-day{ border:1px solid var(--line); margin-bottom:8px; }
+  .plan-day-head{ display:flex; justify-content:space-between; align-items:center; background:var(--paper); padding:8px 12px; border-bottom:1px solid var(--line); }
+  .plan-day-head .dow{ font-weight:700; font-size:12.5px; }
+  .plan-day-head .kind{ font-size:10px; color:var(--ink-3); text-transform:uppercase; letter-spacing:0.03em; }
+  .plan-day-body{ padding:10px 12px; }
+  .plan-day-body .name{ font-size:13.5px; font-weight:600; margin-bottom:6px; }
+  .plan-detail-row{ display:flex; justify-content:space-between; font-size:12px; padding:4px 0; border-bottom:1px dashed var(--line); }
+  .plan-detail-row:last-of-type{ border-bottom:none; }
+  .plan-detail-row span.k{ color:var(--ink-3); }
+  .plan-detail-row span.v{ font-family:'Roboto Mono', monospace; font-weight:600; }
+  .plan-purpose{ font-size:11.5px; color:var(--ink-3); margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
+
+  .evi-card{ border-top: 1px solid var(--line); padding: 14px 0; }
+  .evi-card:first-child{ border-top:none; }
+  .evi-head{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+  .evi-title{ font-family:'Inter', sans-serif; font-size:13px; font-weight:600; }
+  .evi-row{ font-size:12px; line-height:1.6; margin: 3px 0; color: var(--ink-2); }
+  .evi-row b{ color: var(--ink-3); font-weight:600; margin-right:4px; }
+  .evi-summary{ font-size:12px; color: var(--ink-2); line-height:1.6; margin: 8px 0; padding-left:10px; border-left:2px solid var(--line-strong); }
+  .evi-sources{ font-size:10.5px; color: var(--ink-3); margin-top:8px; line-height:1.6; }
+  .evi-sources a{ color: var(--brand); text-decoration:none; }
+  .evi-sources a:hover{ text-decoration:underline; }
+  .evi-note{ font-size:10.5px; color: var(--ink-3); font-style:italic; margin-top:4px; }
+
+  .trend-metric{ margin-bottom:14px; }
+  .trend-metric .tm-label{ font-size:11px; color:var(--ink-3); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:6px; }
+  .trend-bars{ display:flex; align-items:flex-end; gap:4px; height:44px; }
+  .trend-bar{ flex:1; background: var(--brand); min-width:6px; position:relative; }
+  .trend-bar.alert{ background: var(--alert); }
+  .trend-labels{ display:flex; gap:4px; margin-top:4px; }
+  .trend-labels span{ flex:1; font-size:9px; color:var(--ink-3); text-align:center; font-family:'Roboto Mono', monospace; }
+
+  details.collapsible{ border:1px solid var(--line); margin-bottom:10px; }
+  details.collapsible summary{
+    cursor:pointer; padding:12px 14px; font-size:12px; font-weight:600;
+    color: var(--ink-2); list-style:none; display:flex; justify-content:space-between; align-items:center;
+  }
+  details.collapsible summary::-webkit-details-marker{ display:none; }
+  details.collapsible summary::after{ content:"+"; font-family:'Roboto Mono', monospace; color:var(--ink-3); }
+  details.collapsible[open] summary::after{ content:"–"; }
+  details.collapsible .collapsible-body{ padding: 0 14px 14px; }
+
+  .adjust-note{ border-left:3px solid var(--brand); background: var(--paper); padding:10px 12px; font-size:12.5px; line-height:1.6; color:var(--ink-2); margin-top:10px; }
+  .adjust-note.warn{ border-left-color: var(--alert); }
+  .plan-day--top{ border-color: var(--brand); border-width:1px; }
+  .plan-day--top .plan-day-head{ background: var(--brand-tint); }
+
+  /* 기록 입력 서브탭 (시험 2km / 일반 러닝) */
+  .r2-subtabs{ display:flex; gap:8px; margin-bottom:12px; }
+  .r2-subtabs button{
+    flex:1; background: var(--surface); border:1px solid var(--line-strong);
+    padding:9px 6px; font-size:12px; font-weight:600; color: var(--ink-3);
+    cursor:pointer; border-radius:2px;
+  }
+  .r2-subtabs button.active{ background: var(--ink); color: var(--surface); border-color: var(--ink); }
+  .r2-subpanel{ display:none; }
+  .r2-subpanel.active{ display:block; }
+
+  /* 최근 기록 (시험+일반 통합 리스트) */
+  .recent-item{ border:1px solid var(--line); padding:10px 12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+  .recent-item .ri-left{ flex:1; }
+  .recent-item .ri-date{ font-size:11px; color: var(--ink-3); margin-bottom:3px; }
+  .recent-item .ri-type{
+    display:inline-block; font-size:10px; font-weight:700; letter-spacing:0.03em;
+    padding:2px 6px; margin-right:6px; text-transform:uppercase;
+  }
+  .ri-type--exam{ background: var(--brand); color: var(--surface); }
+  .ri-type--casual{ background: var(--line); color: var(--ink-2); }
+  .recent-item .ri-main{ font-family:'Roboto Mono', monospace; font-weight:700; font-size:14px; }
+  .recent-item .ri-sub{ font-size:11px; color: var(--ink-3); margin-top:2px; }
+
+  /* 경기규칙/배점표: 눈에 띄지 않는 작은 좌측 하단 컴포넌트 */
+  .mini-rules{ margin-top:24px; display:flex; justify-content:flex-start; }
+  .mini-rules-row{ display:flex; gap:6px; }
+  .mini-details{ border:1px solid var(--line); background: var(--surface); }
+  .mini-details summary{
+    cursor:pointer; list-style:none; padding:5px 10px; font-size:10.5px; color: var(--ink-3);
+  }
+  .mini-details summary::-webkit-details-marker{ display:none; }
+  .mini-details[open] summary{ border-bottom:1px solid var(--line); color: var(--ink); }
+  .mini-panel-body{ padding:8px 10px; max-width:240px; font-size:11px; }
+
+  .lap-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(90px,1fr)); gap:10px; }
+
+  /* 2km 탭 네비게이션 */
+  .r2-tabs{
+    position: sticky; top: 49px; z-index: 5;
+    display:flex; gap:0;
+    background: var(--surface); border:1px solid var(--line);
+    margin: 4px 0 20px;
+  }
+  .r2-tabs button{
+    flex:1; background:none; border:none; border-right:1px solid var(--line);
+    padding: 10px 4px; font-family:'Inter', sans-serif; font-size: 12px; font-weight:600;
+    color: var(--ink-3); cursor:pointer;
+  }
+  .r2-tabs button:last-child{ border-right:none; }
+  .r2-tabs button.active{ color: var(--surface); background: var(--brand); }
+  #r2-sec-record, #r2-sec-ai, #r2-sec-strategy{ display:none; }
+  #r2-sec-record.active, #r2-sec-ai.active, #r2-sec-strategy.active{ display:block; }
+
+  /* 단순화된 랩 입력 */
+  .lap-list{ display:flex; flex-direction:column; gap:6px; }
+  .lap-row{ display:flex; align-items:center; gap:5px; flex-wrap:nowrap; }
+  .lap-row .lap-no{ width:34px; flex:0 0 auto; font-size:12px; color: var(--ink-3); font-weight:600; }
+  .lap-row .lap-unit{ font-size:11px; color: var(--ink-3); flex:0 0 auto; }
+  input.lap-in{
+    width:38px; flex:0 0 auto; min-width:0;
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: 2px;
+    color: var(--ink); font-family: 'Roboto Mono', monospace; font-size: 15px;
+    padding: 8px 4px; text-align:center; outline: none;
+  }
+  input.lap-in:focus{ border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+  .lap-table{ width:100%; border-collapse:collapse; font-size:12px; margin-bottom:12px; }
+  .lap-table th{ text-align:left; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; font-size:10px; color:var(--ink-3); padding:6px; border-bottom:1px solid var(--ink); }
+  .lap-table td{ padding:8px 6px; border-bottom:1px solid var(--line); font-family:'Roboto Mono', monospace; }
+  .lap-table td.fastest{ color: var(--brand); font-weight:700; }
+  .lap-table td.slowest{ color: var(--alert); font-weight:700; }
+  .strategy-card{ border:1px solid var(--line); padding:12px 14px; margin-bottom:10px; }
+  .strategy-card .st-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+  .strategy-card .st-name{ font-weight:700; font-size:13px; }
+  .strategy-splits{ font-family:'Roboto Mono', monospace; font-size:13px; color:var(--ink); margin-bottom:6px; }
+  .strategy-card p{ font-size:12px; color:var(--ink-2); line-height:1.6; margin:0; }
+  .strategy-card.recommended{ border-color: var(--brand); border-width:1px; }
+  .strategy-card.recommended .st-name::after{ content:" · 추천"; color:var(--brand); font-weight:600; }
+
+  /* ---------------- 4탭 최상위 네비게이션 (코치/기록/훈련/분석) ---------------- */
+  .main-tabs{
+    position: sticky; top: 49px; z-index: 6;
+    display:flex; gap:0;
+    background: var(--surface); border-bottom: 2px solid var(--brand);
+  }
+  .main-tabs button{
+    flex:1; background:none; border:none; border-right:1px solid var(--line);
+    padding: 12px 4px; font-family:'Inter', sans-serif; font-size: 12.5px; font-weight:700;
+    letter-spacing:0.02em; color: var(--ink-3); cursor:pointer;
+  }
+  .main-tabs button:last-child{ border-right:none; }
+  .main-tabs button.active{ color: var(--brand); background: var(--brand-tint); }
+
+  /* ---------------- 코치 탭 전용 ---------------- */
+  .week-progress-bar{ height:6px; background: var(--line); border-radius:3px; overflow:hidden; margin-top:6px; }
+  .week-progress-bar > div{ height:100%; background: var(--brand); }
+  .coach-empty{ color: var(--ink-3); font-size: 12.5px; line-height:1.6; }
+</style>
+</head>
+<body>
+
+  <div class="masthead">
+    <div class="mark"><span class="sq"></span><span class="word">PT COACH</span></div>
+    <div class="today" id="mast-date"></div>
+  </div>
+
+  <nav class="main-tabs" id="main-tabs">
+    <button data-target="screen-coach" class="active">코치</button>
+    <button data-target="screen-log">기록</button>
+    <button data-target="screen-train">훈련</button>
+    <button data-target="screen-analyze">분석</button>
+  </nav>
+
+  <div class="wrap">
+
+    <!-- 코치 화면: 앱 진입 시 기본 화면. "오늘 무엇을 해야 하는가"를 가장 먼저 보여준다 -->
+    <section class="screen active" id="screen-coach">
+      <p class="sec-label">시험일</p>
+      <div class="panel panel--brand block">
+        <div class="form-grid">
+          <div class="field"><label for="exam-date-input">시험일</label><input type="date" id="exam-date-input"></div>
+        </div>
+        <div class="hero-row" id="coach-dday" style="margin-top:12px;"></div>
+      </div>
+
+      <p class="sec-label">오늘의 훈련</p>
+      <div class="block" id="coach-today"></div>
+
+      <p class="sec-label">기록 현황</p>
+      <div class="hero-row block" id="coach-hero"></div>
+
+      <p class="sec-label">목표 달성 전망</p>
+      <div class="block ai-block" id="coach-projection"></div>
+
+      <p class="sec-label">현재 분석 신뢰도</p>
+      <div class="block ai-block" id="coach-confidence"></div>
+
+      <p class="sec-label">이번 주 훈련</p>
+      <div class="block ai-block" id="coach-week"></div>
+
+      <p class="sec-label">코치의 코멘트</p>
+      <div class="block ai-block" id="coach-summary"></div>
+    </section>
+
+    <!-- 종목 상세 화면 -->
+    <section class="screen" id="screen-detail">
+      <button class="back-btn" id="back-btn">‹ 종목 목록으로</button>
+      <h1 class="event-title" id="detail-title"></h1>
+      <p class="event-sub" id="detail-sub"></p>
+
+      <p class="sec-label">배점표</p>
+      <div class="block panel panel--placeholder" id="detail-scoretable">
+        <p class="empty-note">아직 이 종목의 배점표가 입력되지 않았어요. 자료를 업로드하면 이 자리에 정확하게 반영돼요.</p>
+      </div>
+
+      <p class="sec-label">경기 규칙</p>
+      <div class="block panel panel--placeholder" id="detail-rules">
+        <p class="empty-note">아직 이 종목의 경기 규칙이 입력되지 않았어요. 자료를 업로드하면 이 자리에 정확하게 반영돼요.</p>
+      </div>
+
+      <p class="sec-label">기록 입력</p>
+      <div class="panel panel--brand block">
+        <div class="form-grid">
+          <div class="field">
+            <label for="d-date">날짜</label>
+            <input type="date" id="d-date">
+          </div>
+          <div class="field">
+            <label for="d-value">기록 값</label>
+            <input type="number" id="d-value" placeholder="숫자" step="0.01">
+          </div>
+          <div class="field">
+            <label for="d-unit">단위</label>
+            <input type="text" id="d-unit" placeholder="예: cm, 초, 회">
+          </div>
+          <div class="field">
+            <label for="d-note">메모 (선택)</label>
+            <input type="text" id="d-note" placeholder="선택 입력">
+          </div>
+        </div>
+        <button class="btn" id="d-add-btn">기록 저장</button>
+        <p class="error-msg" id="d-error"></p>
+      </div>
+
+      <p class="sec-label">기록 목록</p>
+      <div class="block table-scroll" id="detail-table"></div>
+
+      <p class="sec-label">목표 설정</p>
+      <div class="panel block">
+        <div class="form-grid">
+          <div class="field">
+            <label for="g-value">목표 기록 값</label>
+            <input type="number" id="g-value" placeholder="숫자" step="0.01">
+          </div>
+          <div class="field">
+            <label for="g-score">목표 점수 (선택)</label>
+            <input type="number" id="g-score" placeholder="배점표 반영 후 정확히 설정 가능" step="0.01">
+          </div>
+          <div class="field">
+            <label for="g-date">목표 날짜 (선택)</label>
+            <input type="date" id="g-date">
+          </div>
+        </div>
+        <button class="btn btn-outline" id="g-save-btn">목표 저장</button>
+        <p class="error-msg" id="g-error"></p>
+        <div class="goal-summary" id="g-summary"></div>
+      </div>
+
+      <p class="sec-label">AI 분석 · 훈련 추천</p>
+      <div class="block panel panel--placeholder">
+        <div class="locked">
+          <span class="tag">준비 중</span>
+          <span>배점표와 기록이 충분히 쌓이면, 부족한 체력 요소 분석과 맞춤 훈련 추천이 이 자리에 표시돼요. 지금은 기록·목표 데이터를 쌓는 단계예요.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 기록 화면: 2km 시험 기록 + 목표 + 그 외 종목 기록 -->
+    <section class="screen" id="screen-log">
+      <h1 class="event-title">기록</h1>
+      <p class="event-sub">2km 달리기 · 400m 트랙 5바퀴 = 2.00km</p>
+
+      <!-- 최근기록 / 목표 / 목표까지 -->
+      <div class="hero-row" id="r2-hero"></div>
+      <div class="panel block" id="r2-goal-inline"></div>
+
+      <!-- 시험 2km 기록 (5바퀴) -->
+      <p class="sec-label">시험 2km 기록 입력 (400m × 5바퀴)</p>
+      <div class="panel panel--brand block">
+        <div class="lap-list">
+          <div class="lap-row"><span class="lap-no">1바퀴</span><input class="lap-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="l1-min"><span class="lap-unit">분</span><input class="lap-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="l1-sec"><span class="lap-unit">초</span></div>
+          <div class="lap-row"><span class="lap-no">2바퀴</span><input class="lap-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="l2-min"><span class="lap-unit">분</span><input class="lap-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="l2-sec"><span class="lap-unit">초</span></div>
+          <div class="lap-row"><span class="lap-no">3바퀴</span><input class="lap-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="l3-min"><span class="lap-unit">분</span><input class="lap-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="l3-sec"><span class="lap-unit">초</span></div>
+          <div class="lap-row"><span class="lap-no">4바퀴</span><input class="lap-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="l4-min"><span class="lap-unit">분</span><input class="lap-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="l4-sec"><span class="lap-unit">초</span></div>
+          <div class="lap-row"><span class="lap-no">5바퀴</span><input class="lap-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="l5-min"><span class="lap-unit">분</span><input class="lap-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" id="l5-sec"><span class="lap-unit">초</span></div>
+        </div>
+        <div class="field" style="margin-top:12px; max-width:160px;"><label for="r2-date">날짜</label><input type="date" id="r2-date"></div>
+        <button class="btn" id="r2-add-btn">기록 저장</button>
+        <p class="error-msg" id="r2-error"></p>
+      </div>
+
+      <!-- 결과 분석 -->
+      <p class="sec-label">결과 분석</p>
+      <div class="block" id="r2-analysis-result">
+        <p class="empty-note">5바퀴 기록을 입력하면 바로 분석 결과가 나와요.</p>
+      </div>
+
+      <p class="sec-label">시험 기록 목록</p>
+      <div class="block" id="r2-exam-recent-list"></div>
+
+      <!-- 경기규칙/배점표: 눈에 띄지 않게 작은 버튼으로 축소, 좌측 정렬 -->
+      <div class="mini-rules">
+        <div class="mini-rules-row">
+          <details class="mini-details">
+            <summary>경기규칙</summary>
+            <div class="mini-panel-body" id="r2-rules">
+              <p class="empty-note">아직 2km 달리기 경기 규칙이 입력되지 않았어요. 자료를 업로드하면 이 자리에 정확하게 반영돼요.</p>
+            </div>
+          </details>
+          <details class="mini-details">
+            <summary>배점표</summary>
+            <div class="mini-panel-body" id="r2-scoretable">
+              <p class="empty-note">아직 2km 달리기 배점표가 입력되지 않았어요. 자료를 업로드하면 이 자리에 정확하게 반영돼요.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <p class="sec-label" style="margin-top:24px;">다른 종목 기록</p>
+      <div class="block">
+        <div class="event-list" id="event-list"></div>
+      </div>
+      <p class="empty-note">종목을 선택하면 기록·목표·배점표를 확인하고 입력할 수 있어요. 배점표와 경기 규칙은 자료가 제공되면 이곳에 반영됩니다.</p>
+    </section>
+
+    <!-- 훈련 화면: AI 훈련추천 + 수행 결과 입력 + 훈련 이력 -->
+    <section class="screen" id="screen-train">
+      <h1 class="event-title">훈련</h1>
+      <p class="event-sub">AI 추천 훈련과 수행 결과 관리</p>
+
+      <p class="sec-label">AI가 계획한 이번 주 훈련</p>
+      <p class="ai-caveat" style="margin-top:-4px;">정식 주간 계획 알고리즘은 아직 준비 중이에요. 지금은 현재 기록·목표를 기준으로 한 AI 추천 훈련을 보여드려요.</p>
+      <div class="block" id="r2-ai-content"></div>
+
+      <p class="sec-label">예정된 훈련</p>
+      <div class="block" id="train-weekly-plan"></div>
+
+      <p class="sec-label">훈련 수행 결과 입력</p>
+      <div class="panel panel--brand block">
+        <div class="form-grid">
+          <div class="field"><label for="w-session">훈련 종류</label>
+            <select id="w-session" style="background:var(--surface); border:1px solid var(--line-strong); border-radius:2px; padding:9px 10px; font-family:'Roboto Mono',monospace; font-size:13px; width:100%;">
+              <option value="interval">400m 인터벌(핵심 고강도)</option>
+              <option value="threshold">역치/지속주(중강도)</option>
+            </select>
+          </div>
+          <div class="field"><label for="w-dist">거리</label><input type="text" id="w-dist" placeholder="예: 400m" value="400m"></div>
+          <div class="field"><label for="w-target-pace">목표 페이스(초)</label><input type="number" id="w-target-pace" min="1" step="1" placeholder="예: 80"></div>
+          <div class="field"><label for="w-actual-pace">실제 페이스(초, 평균)</label><input type="number" id="w-actual-pace" min="1" step="1" placeholder="예: 82"></div>
+          <div class="field"><label for="w-sets">세트 수(목표)</label><input type="number" id="w-sets" min="1" step="1" placeholder="예: 6"></div>
+          <div class="field"><label for="w-rest">회복시간</label><input type="text" id="w-rest" placeholder="예: 80초" value="90초"></div>
+          <div class="field"><label for="w-result">결과</label>
+            <select id="w-result" style="background:var(--surface); border:1px solid var(--line-strong); border-radius:2px; padding:9px 10px; font-family:'Roboto Mono',monospace; font-size:13px; width:100%;">
+              <option value="success">성공</option>
+              <option value="fail">실패</option>
+            </select>
+          </div>
+          <div class="field"><label for="w-failed-set">실패한 세트 (실패 선택 시)</label><input type="number" id="w-failed-set" min="1" step="1" placeholder="예: 5"></div>
+          <div class="field"><label for="w-date">날짜</label><input type="date" id="w-date"></div>
+        </div>
+        <div class="form-grid" style="margin-top:10px;">
+          <div class="field"><label for="w-rpe">RPE, 자각강도 (1~10)</label><input type="number" id="w-rpe" min="1" max="10" step="1" placeholder="예: 7"></div>
+          <div class="field"><label for="w-hr-avg">평균 심박수 (선택)</label><input type="number" id="w-hr-avg" min="0" step="1" placeholder="예: 165"></div>
+          <div class="field"><label for="w-hr-max">최고 심박수 (선택)</label><input type="number" id="w-hr-max" min="0" step="1" placeholder="예: 182"></div>
+        </div>
+        <div class="field" style="margin-top:10px;">
+          <label for="w-persets">세트별 실제 기록 (선택, 쉼표로 구분)</label>
+          <input type="text" id="w-persets" placeholder="예: 80,80,81,82,85">
+        </div>
+        <button class="btn" id="w-add-btn" style="margin-top:12px;">훈련 결과 저장</button>
+        <p class="error-msg" id="w-error"></p>
+      </div>
+
+      <p class="sec-label">완료한 훈련</p>
+      <div class="block" id="r2-workout-recent-list"></div>
+
+      <!-- 훈련 정보 (선택, 있으면 추천이 더 정확해짐) -->
+      <p class="sec-label">훈련 정보 (선택)</p>
+      <div class="panel block">
+        <div class="form-grid">
+          <div class="field"><label for="p-weekly-freq">주당 러닝 가능 횟수</label><input type="number" id="p-weekly-freq" min="0" max="14" step="1" placeholder="예: 3"></div>
+          <div class="field"><label for="p-weekly-vol">현재 주당 러닝량(km, 대략)</label><input type="number" id="p-weekly-vol" step="0.5" placeholder="예: 10"></div>
+        </div>
+        <button class="btn btn-outline" id="p-save-btn">저장</button>
+        <p class="error-msg" id="p-error"></p>
+        <p class="ai-caveat">입력하지 않아도 AI 훈련추천은 바로 볼 수 있어요. 입력하면 추천이 조금 더 정확해져요.</p>
+      </div>
+
+      <p class="ai-caveat" style="margin-top:8px;">이 화면의 분석과 추천은 참고용 코칭 가이드이며 의료적 진단이 아니에요. 지속적인 통증, 흉통, 실신, 평소와 다른 호흡곤란, 심박 이상이 있다면 훈련을 중단하고 전문가의 평가를 받으세요.</p>
+    </section>
+
+    <!-- 분석 화면: 기록/훈련 데이터를 바탕으로 한 경향·패턴 분석 -->
+    <section class="screen" id="screen-analyze">
+      <h1 class="event-title">분석</h1>
+      <p class="event-sub">기록·훈련 데이터 기반 분석</p>
+
+      <p class="sec-label">현재 기록 변화</p>
+      <div class="block" id="analyze-trend"></div>
+
+      <p class="sec-label">훈련 수행 이력 · 동일한 훈련에서의 수행 변화</p>
+      <div class="block" id="analyze-session-history"></div>
+
+      <p class="sec-label">페이스별 수행능력</p>
+      <div class="block" id="analyze-pace"></div>
+
+      <p class="sec-label">성공/실패 패턴</p>
+      <div class="block" id="analyze-pattern"></div>
+
+      <p class="sec-label">현재 약점 가설</p>
+      <div class="block" id="analyze-weakness"></div>
+
+      <p class="sec-label">목표 달성 전망 변화</p>
+      <div class="block" id="analyze-projection"></div>
+
+      <p class="sec-label">AI 분석 신뢰도</p>
+      <div class="block" id="analyze-confidence"></div>
+
+      <p class="sec-label">페이스 전략</p>
+      <div class="block" id="r2-strategy"></div>
+    </section>
+
+  </div>
+
+  <footer>기록은 새로고침하면 사라져요. (프로토타입 단계 — 추후 저장 방식 추가 예정)</footer>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  // ---------------------------------------------------------------
+  // 데이터 모델
+  // 종목은 6개로 고정. 배점표(scoreTables)와 규칙(rules)은 아직 자료가
+  // 없으므로 전부 null로 둔다. 자료가 제공되면 이 객체들을 채우고,
+  // renderDetail() 안의 해당 렌더 분기만 확장하면 된다 (다른 코드 수정 불필요).
+  // ---------------------------------------------------------------
+  const EVENTS = [
+    { id: 'jump',   name: '제자리멀리뛰기' },
+    { id: 'situp',  name: '윗몸일으키기' },
+    { id: 'pullup', name: '턱걸이' },
+    { id: 'hurdle', name: '허들넘기' },
+    { id: 'carry',  name: '더미나르기' },
+    { id: 'run2km', name: '2km 달리기' }
+  ];
+
+  // 종목별 배점표. 예: scoreTables['jump'] = { rows:[{min:250,max:259,score:8}, ...], source:'2025 배점표.pdf' }
+  const scoreTables = { jump:null, situp:null, pullup:null, hurdle:null, carry:null, run2km:null };
+  // 종목별 경기 규칙 텍스트/구조. 예: rules['jump'] = { text:'...', source:'...' }
+  const rules = { jump:null, situp:null, pullup:null, hurdle:null, carry:null, run2km:null };
+
+  // 종목별 기록 목록: { id, date, value, unit, note }
+  const records = { jump:[], situp:[], pullup:[], hurdle:[], carry:[], run2km:[] };
+  // 종목별 목표: { value, score, date }
+  const goals = { jump:null, situp:null, pullup:null, hurdle:null, carry:null, run2km:null };
+
+  // ---------------------------------------------------------------
+  // 2km 달리기 전용 데이터 (다른 5종목과 별도로 관리)
+  // ---------------------------------------------------------------
+  const run2kmRecords = [];       // 시험 2km 기록: {id, date, laps:[s1..s5](초), totalSec, totalMin, pace}
+  // 훈련 수행 기록: {id, date, sessionKey, dist, targetPaceSec, actualPaceSec, targetSets, rest,
+  //                  result:'success'|'fail', failedAtSet:number|null, perSetReps:number[]|null}
+  const run2kmWorkoutLog = [];
+  let run2kmGoal = null;          // 목표 기록: {min, sec, totalMin, pace}
+  let run2kmInfo = null;          // 최소 훈련 정보: {weeklyFreq, weeklyVolumeKm}
+
+  // ---------------------------------------------------------------
+  // 시험일 · 장기/주간 계획 데이터 모델 (뼈대만 정의)
+  // 단계별 주차 수·훈련 배분 비율·단계별 페이스 등은 아직 하드코딩하지 않는다.
+  // 실제 훈련 처방 알고리즘은 이후 별도로 설계해서 이 구조 위에 채워 넣는다.
+  // ---------------------------------------------------------------
+  let examDate = null; // 'YYYY-MM-DD'
+
+  const PHASE_TYPES = [
+    { key:'base',     label:'기초' },
+    { key:'build',    label:'향상' },
+    { key:'specific', label:'2km 특이적' },
+    { key:'peak',     label:'시험 대비' },
+    { key:'taper',    label:'테이퍼' }
+  ];
+  // longTermPlan = { examDate, phases: [{ key, label, startDate:null, endDate:null, note:null }, ...] }
+  // 각 단계의 기간(startDate/endDate)과 세부 내용(note)은 지금 단계에서 채우지 않는다.
+  let longTermPlan = null;
+
+  // weeklyPlans[i] = { weekStartDate:'YYYY-MM-DD', phaseKey:null, days:[dailyTraining, ...] }
+  // dailyTraining = { id, date, dayOfWeek, sessionType:null, plannedDist:null,
+  //                    plannedPaceSec:null, plannedSets:null, plannedRest:null,
+  //                    status:'scheduled'|'completed'|'skipped', linkedWorkoutId:null }
+  // 자동 생성 알고리즘이 아직 없으므로 지금은 빈 배열로 둔다.
+  let weeklyPlans = [];
+
+  let nextId = 1;
+  let currentEventId = null;
+
+  const todayStr = () => {
+    const d = new Date();
+    const tz = d.getTimezoneOffset() * 60000;
+    return new Date(d - tz).toISOString().slice(0,10);
+  };
+  $('mast-date').textContent = todayStr();
+
+  function eventName(id){ return EVENTS.find(e => e.id === id)?.name || id; }
+
+  // ---------------- "다른 종목 기록" 목록 (기록 탭 하단, 2km 제외 5종목) ----------------
+  function renderMain(){
+    const list = $('event-list');
+    const others = EVENTS.filter(e => e.id !== 'run2km');
+    list.innerHTML = others.map((e, i) => {
+      const recCount = records[e.id].length;
+      const hasGoal = !!goals[e.id];
+      const metaParts = [`기록 ${recCount}건`];
+      metaParts.push(hasGoal ? '목표 설정됨' : '목표 미설정');
+      return `
+        <button class="event-card" onclick="openEvent('${e.id}')">
+          <span class="no">${String(i+1).padStart(2,'0')}</span>
+          <span class="name">${e.name}</span>
+          <span class="meta">${metaParts.join(' · ')}</span>
+          <span class="chev">›</span>
+        </button>
+      `;
+    }).join('');
+  }
+
+  // ---------------- 최상위 4탭 전환 (코치/기록/훈련/분석) ----------------
+  const MAIN_TABS = ['screen-coach', 'screen-log', 'screen-train', 'screen-analyze'];
+  const mainTabButtons = document.querySelectorAll('#main-tabs button');
+  function showMainTab(id){
+    $('screen-detail').classList.remove('active');
+    $('main-tabs').style.display = '';
+    MAIN_TABS.forEach(t => $(t).classList.toggle('active', t === id));
+    mainTabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === id));
+    currentEventId = null;
+    window.scrollTo({ top: 0, behavior:'instant' in window ? 'instant' : 'auto' });
+  }
+  window.showMainTab = showMainTab;
+  mainTabButtons.forEach(btn => {
+    btn.addEventListener('click', () => showMainTab(btn.dataset.target));
+  });
+
+  // ---------------- 다른 종목 상세 화면 전환 (기록 탭에서 진입) ----------------
+  function openEvent(id){
+    currentEventId = id;
+    MAIN_TABS.forEach(t => $(t).classList.remove('active'));
+    $('main-tabs').style.display = 'none';
+    $('screen-detail').classList.add('active');
+    $('d-date').value = todayStr();
+    $('d-value').value = ''; $('d-unit').value = ''; $('d-note').value = '';
+    $('d-error').textContent = '';
+    $('g-value').value = ''; $('g-score').value = ''; $('g-date').value = '';
+    $('g-error').textContent = '';
+    renderDetail();
+    window.scrollTo({ top: 0, behavior:'instant' in window ? 'instant' : 'auto' });
+  }
+  window.openEvent = openEvent;
+
+  $('back-btn').addEventListener('click', () => {
+    showMainTab('screen-log');
+  });
+
+  // ---------------- 상세 화면 ----------------
+  function renderDetail(){
+    if(!currentEventId) return;
+    const id = currentEventId;
+    $('detail-title').textContent = eventName(id);
+    $('detail-sub').textContent = `기록 ${records[id].length}건 · ${goals[id] ? '목표 설정됨' : '목표 미설정'}`;
+
+    // 배점표 — 자료 업로드 후 이 분기를 채워서 실제 표를 렌더링한다.
+    const scoreBox = $('detail-scoretable');
+    if(scoreTables[id]){
+      scoreBox.innerHTML = '<p class="empty-note">(배점표 렌더링은 자료 반영 시 구현)</p>';
+    } else {
+      scoreBox.innerHTML = '<p class="empty-note">아직 이 종목의 배점표가 입력되지 않았어요. 자료를 업로드하면 이 자리에 정확하게 반영돼요.</p>';
+    }
+
+    // 경기 규칙 — 자료 업로드 후 이 분기를 채운다.
+    const rulesBox = $('detail-rules');
+    if(rules[id]){
+      rulesBox.innerHTML = '<p class="empty-note">(규칙 렌더링은 자료 반영 시 구현)</p>';
+    } else {
+      rulesBox.innerHTML = '<p class="empty-note">아직 이 종목의 경기 규칙이 입력되지 않았어요. 자료를 업로드하면 이 자리에 정확하게 반영돼요.</p>';
+    }
+
+    // 기록 목록
+    const tableBox = $('detail-table');
+    const list = records[id];
+    if(list.length === 0){
+      tableBox.innerHTML = '<p class="empty-note">저장된 기록이 없어요.</p>';
+    } else {
+      const sorted = [...list].sort((a,b) => b.date.localeCompare(a.date));
+      tableBox.innerHTML = `
+        <table>
+          <thead><tr><th>날짜</th><th>기록</th><th>메모</th><th></th></tr></thead>
+          <tbody>
+            ${sorted.map(r => `
+              <tr>
+                <td>${r.date}</td>
+                <td>${r.value}${r.unit ? ' ' + r.unit : ''}</td>
+                <td>${r.note || '—'}</td>
+                <td><button class="del-btn" onclick="deleteRecord('${id}', ${r.id})">✕</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // 목표 요약
+    const goal = goals[id];
+    $('g-summary').innerHTML = goal
+      ? `현재 목표: <strong>${goal.value}${goal.score !== null ? ' · 목표 점수 ' + goal.score : ''}</strong>${goal.date ? ` · ${goal.date}까지` : ''}`
+      : '';
+  }
+
+  function addRecord(){
+    const errEl = $('d-error');
+    errEl.textContent = '';
+    const date = $('d-date').value;
+    const value = parseFloat($('d-value').value);
+    const unit = $('d-unit').value.trim();
+    const note = $('d-note').value.trim();
+
+    if(!date){ errEl.textContent = '날짜를 입력해주세요.'; return; }
+    if(isNaN(value)){ errEl.textContent = '기록 값을 입력해주세요.'; return; }
+
+    records[currentEventId].push({ id: nextId++, date, value, unit, note });
+    $('d-value').value = ''; $('d-unit').value = ''; $('d-note').value = '';
+    renderDetail();
+  }
+  $('d-add-btn').addEventListener('click', addRecord);
+
+  function deleteRecord(eventId, recId){
+    const arr = records[eventId];
+    const idx = arr.findIndex(r => r.id === recId);
+    if(idx > -1) arr.splice(idx, 1);
+    renderDetail();
+  }
+  window.deleteRecord = deleteRecord;
+
+  function saveGoal(){
+    const errEl = $('g-error');
+    errEl.textContent = '';
+    const value = parseFloat($('g-value').value);
+    const score = $('g-score').value ? parseFloat($('g-score').value) : null;
+    const date = $('g-date').value || null;
+
+    if(isNaN(value)){ errEl.textContent = '목표 기록 값을 입력해주세요.'; return; }
+
+    goals[currentEventId] = { value, score, date };
+    renderDetail();
+  }
+  $('g-save-btn').addEventListener('click', saveGoal);
+
+  // ---------------------------------------------------------------
+  // 2km 달리기 전용 로직 (400m 트랙 5바퀴 기반, 단순화 버전)
+  // ---------------------------------------------------------------
+  function formatSecToMMSS(totalSec){
+    if(totalSec === null || totalSec === undefined || !isFinite(totalSec)) return '—';
+    const min = Math.floor(totalSec / 60);
+    const sec = Math.round(totalSec % 60);
+    return `${min}:${String(sec).padStart(2,'0')}`;
+  }
+  function formatPaceFromSecPerKm(secPerKm){
+    if(secPerKm === null || !isFinite(secPerKm)) return '—';
+    const totalSec = secPerKm;
+    const min = Math.floor(totalSec / 60);
+    const sec = Math.round(totalSec % 60);
+    return `${min}'${String(sec).padStart(2,'0')}"/km`;
+  }
+  function r2DaysUntil(dateStr){
+    if(!dateStr) return null;
+    const tz = new Date().getTimezoneOffset() * 60000;
+    const today = new Date(new Date() - tz); today.setHours(0,0,0,0);
+    return Math.round((new Date(dateStr) - today) / 86400000);
+  }
+
+  function getBestR2(){
+    if(run2kmRecords.length === 0) return null;
+    return run2kmRecords.reduce((a,b) => a.totalSec < b.totalSec ? a : b);
+  }
+  function getLatestR2(){
+    if(run2kmRecords.length === 0) return null;
+    return [...run2kmRecords].sort((a,b) => b.date.localeCompare(a.date))[0];
+  }
+
+  // ---- 5바퀴 기록 입력 ----
+  function addR2Record(){
+    const errEl = $('r2-error');
+    errEl.textContent = '';
+    const date = $('r2-date').value;
+    if(!date){ errEl.textContent = '날짜를 입력해주세요.'; return; }
+
+    const laps = [];
+    for(let i=1;i<=5;i++){
+      const min = parseFloat($(`l${i}-min`).value) || 0;
+      const sec = parseFloat($(`l${i}-sec`).value) || 0;
+      if(sec >= 60){ errEl.textContent = `${i}바퀴 초는 0~59 사이로 입력해주세요.`; return; }
+      const lapSec = min*60 + sec;
+      if(lapSec <= 0){ errEl.textContent = `${i}바퀴 기록을 입력해주세요.`; return; }
+      laps.push(lapSec);
+    }
+    const totalSec = laps.reduce((a,b)=>a+b,0);
+    const totalMin = totalSec/60;
+    const pace = totalSec / 2; // 초/km (거리 2.00km 고정)
+
+    run2kmRecords.push({ id: nextId++, date, laps, totalSec, totalMin, pace });
+    for(let i=1;i<=5;i++){ $(`l${i}-min`).value=''; $(`l${i}-sec`).value=''; }
+    renderAll();
+  }
+  $('r2-add-btn').addEventListener('click', addR2Record);
+
+  // 분/초 입력창은 숫자만 입력되도록 필터링 (스테퍼/슬라이더 없이 일반 텍스트 입력처럼 동작)
+  for(let i=1;i<=5;i++){
+    ['min','sec'].forEach(part => {
+      const el = $(`l${i}-${part}`);
+      el.addEventListener('input', () => {
+        el.value = el.value.replace(/[^0-9]/g, '').slice(0,2);
+      });
+    });
+  }
+
+  function deleteR2Record(id){
+    const idx = run2kmRecords.findIndex(r => r.id === id);
+    if(idx > -1) run2kmRecords.splice(idx, 1);
+    renderAll();
+  }
+  window.deleteR2Record = deleteR2Record;
+
+  // ---- AI 추천 훈련 수행 기록 입력 ----
+  function addR2Workout(){
+    const errEl = $('w-error');
+    errEl.textContent = '';
+    const sessionKey = $('w-session').value;
+    const dist = $('w-dist').value.trim() || '400m';
+    const targetPaceSec = parseFloat($('w-target-pace').value);
+    const actualPaceSec = parseFloat($('w-actual-pace').value);
+    const targetSets = parseInt($('w-sets').value);
+    const rest = $('w-rest').value.trim() || '—';
+    const result = $('w-result').value;
+    const failedAtSet = $('w-failed-set').value ? parseInt($('w-failed-set').value) : null;
+    const date = $('w-date').value;
+    const perSetsRaw = $('w-persets').value.trim();
+    const perSetReps = perSetsRaw ? perSetsRaw.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n) && n > 0) : null;
+    const rpe = $('w-rpe').value ? parseInt($('w-rpe').value) : null;
+    const heartRateAvg = $('w-hr-avg').value ? parseInt($('w-hr-avg').value) : null;
+    const heartRateMax = $('w-hr-max').value ? parseInt($('w-hr-max').value) : null;
+
+    if(!date){ errEl.textContent = '날짜를 입력해주세요.'; return; }
+    if(!targetPaceSec || targetPaceSec <= 0){ errEl.textContent = '목표 페이스(초)를 입력해주세요.'; return; }
+    if(!actualPaceSec || actualPaceSec <= 0){ errEl.textContent = '실제 페이스(초)를 입력해주세요.'; return; }
+    if(!targetSets || targetSets <= 0){ errEl.textContent = '세트 수를 입력해주세요.'; return; }
+    if(result === 'fail' && failedAtSet !== null && (failedAtSet <= 0 || failedAtSet > targetSets)){ errEl.textContent = '실패한 세트는 1~세트 수 사이여야 해요.'; return; }
+    if(rpe !== null && (rpe < 1 || rpe > 10)){ errEl.textContent = 'RPE는 1~10 사이로 입력해주세요.'; return; }
+
+    run2kmWorkoutLog.push({ id: nextId++, date, sessionKey, dist, targetPaceSec, actualPaceSec, targetSets, rest, result, failedAtSet: result === 'fail' ? failedAtSet : null, perSetReps: (perSetReps && perSetReps.length) ? perSetReps : null, rpe, heartRateAvg, heartRateMax });
+    $('w-actual-pace').value=''; $('w-failed-set').value=''; $('w-persets').value=''; $('w-rpe').value=''; $('w-hr-avg').value=''; $('w-hr-max').value='';
+    renderAll();
+    showMainTab('screen-coach');
+  }
+  $('w-add-btn').addEventListener('click', addR2Workout);
+
+  function deleteR2Workout(id){
+    const idx = run2kmWorkoutLog.findIndex(w => w.id === id);
+    if(idx > -1) run2kmWorkoutLog.splice(idx, 1);
+    renderAll();
+  }
+  window.deleteR2Workout = deleteR2Workout;
+
+
+  // ---- 목표 (인라인, 최소 입력) ----
+  function renderGoalInline(){
+    const box = $('r2-goal-inline');
+    if(run2kmGoal){
+      box.innerHTML = `
+        <div class="form-grid">
+          <div class="field"><label>목표 기록</label>
+            <div class="time-inputs" style="display:flex; gap:6px;">
+              <input type="number" id="goal-min-edit" value="${run2kmGoal.min}" min="0" step="1">
+              <input type="number" id="goal-sec-edit" value="${run2kmGoal.sec}" min="0" max="59" step="1">
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" id="goal-update-btn" style="margin-top:10px;">목표 수정</button>
+      `;
+      $('goal-update-btn').addEventListener('click', saveGoalInline);
+    } else {
+      box.innerHTML = `
+        <div class="form-grid">
+          <div class="field"><label>목표 기록 설정</label>
+            <div class="time-inputs" style="display:flex; gap:6px;">
+              <input type="number" id="goal-min-edit" placeholder="분" min="0" step="1">
+              <input type="number" id="goal-sec-edit" placeholder="초" min="0" max="59" step="1">
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" id="goal-update-btn" style="margin-top:10px;">목표 저장</button>
+      `;
+      $('goal-update-btn').addEventListener('click', saveGoalInline);
+    }
+  }
+  function saveGoalInline(){
+    const min = parseFloat($('goal-min-edit').value) || 0;
+    const sec = parseFloat($('goal-sec-edit').value) || 0;
+    if(min*60+sec <= 0) return;
+    const totalMin = min + sec/60;
+    run2kmGoal = { min, sec, totalMin, pace: (totalMin*60)/2 };
+    renderAll();
+  }
+
+  // ---- 훈련 정보 (최소 입력) ----
+  function saveR2Info(){
+    const errEl = $('p-error');
+    errEl.textContent = '';
+    const weeklyFreq = $('p-weekly-freq').value ? parseInt($('p-weekly-freq').value) : null;
+    if(weeklyFreq === null){ errEl.textContent = '주당 러닝 가능 횟수를 입력해주세요.'; return; }
+    run2kmInfo = {
+      weeklyFreq,
+      weeklyVolumeKm: $('p-weekly-vol').value ? parseFloat($('p-weekly-vol').value) : null
+    };
+    renderAll();
+  }
+  $('p-save-btn').addEventListener('click', saveR2Info);
+
+  // ---- 바퀴별 페이스 분석 ----
+  function analyzeLaps(laps){
+    const avg = laps.reduce((a,b)=>a+b,0) / 5;
+    const fastestIdx = laps.indexOf(Math.min(...laps));
+    const slowestIdx = laps.indexOf(Math.max(...laps));
+    const maxDev = Math.max(...laps) - Math.min(...laps);
+    const stdev = Math.sqrt(laps.reduce((s,l)=>s+(l-avg)**2,0)/5);
+    const firstPair = (laps[0]+laps[1])/2;
+    const lastPair = (laps[3]+laps[4])/2;
+    const trend = lastPair - firstPair; // 양수=후반이 느려짐
+
+    let pattern, narrative;
+    if(stdev < 1.0){
+      pattern = '균등 페이스';
+    } else if(laps[4] <= Math.min(laps[1],laps[2],laps[3]) - 1.5){
+      pattern = '후반 스퍼트형';
+    } else if(laps[0] <= laps[1] - 1.5 && Math.max(laps[1],laps[2],laps[3]) - laps[0] > 2){
+      pattern = '초반 빠른 출발 후 중반 하락';
+    } else if(trend > 4){
+      pattern = '강한 positive split';
+    } else if(trend > 1.2){
+      pattern = '약한 positive split';
+    } else if(trend < -1.2){
+      pattern = '약한 negative split';
+    } else {
+      pattern = '전체적으로 불안정한 페이스';
+    }
+
+    // 바퀴별 변화를 문장으로 서술 (예시 형식과 동일한 방식)
+    const parts = [];
+    for(let i=1;i<5;i++){
+      const diff = Math.round(laps[i]-laps[i-1]);
+      if(Math.abs(diff) < 1) parts.push(`${i}→${i+1}바퀴 비슷`);
+      else parts.push(`${i}→${i+1}바퀴 ${diff>0?'+':''}${diff}초`);
+    }
+    narrative = `${parts.join(', ')}. `;
+    if(trend > 1.2){
+      narrative += '초반 대비 후반부로 갈수록 페이스가 느려지는 경향이 있어요.';
+    } else if(trend < -1.2){
+      narrative += '초반보다 후반부 페이스가 오히려 빨라졌어요.';
+    } else if(stdev < 1.0){
+      narrative += '5바퀴 내내 큰 편차 없이 고르게 유지됐어요.';
+    } else {
+      narrative += '바퀴마다 편차가 있어 일정한 흐름을 찾기는 어려워요.';
+    }
+
+    return { avg, fastestIdx, slowestIdx, maxDev, stdev, trend, pattern, narrative };
+  }
+
+  function renderR2Hero(best, goal, containerId){
+    const hero = $(containerId || 'r2-hero');
+    const currentCell = best
+      ? `<div class="hero-cell"><div class="hero-label">최근 기록</div><div class="hero-figure lg">${formatSecToMMSS(getLatestR2().totalSec)}</div></div>`
+      : `<div class="hero-cell"><div class="hero-label">최근 기록</div><div class="hero-figure" style="color:var(--ink-3); font-size:16px;">기록 없음</div></div>`;
+    const goalCell = goal
+      ? `<div class="hero-cell accent"><div class="hero-label">목표</div><div class="hero-figure lg">${goal.min}:${String(goal.sec).padStart(2,'0')}</div></div>`
+      : `<div class="hero-cell"><div class="hero-label">목표</div><div class="hero-figure" style="color:var(--ink-3); font-size:16px;">미설정</div></div>`;
+    let diffCell = `<div class="hero-cell"><div class="hero-label">목표까지</div><div class="hero-figure" style="color:var(--ink-3); font-size:16px;">—</div></div>`;
+    if(best && goal){
+      const latest = getLatestR2();
+      const diffSec = Math.round(latest.totalSec - (goal.min*60+goal.sec));
+      diffCell = `<div class="hero-cell"><div class="hero-label">목표까지</div><div class="hero-figure lg" style="color:${diffSec<=0?'var(--brand)':'var(--ink)'};">${diffSec<=0 ? '달성' : diffSec+'초'}</div></div>`;
+    }
+    hero.innerHTML = currentCell + goalCell + diffCell;
+  }
+
+  function renderR2AnalysisResult(){
+    const box = $('r2-analysis-result');
+    const latest = getLatestR2();
+    if(!latest){
+      box.innerHTML = '<p class="empty-note">5바퀴 기록을 입력하면 바로 분석 결과가 나와요.</p>';
+      return;
+    }
+    const a = analyzeLaps(latest.laps);
+    const avgKmPace = latest.totalSec / 2;
+    const lapRows = latest.laps.map((l,i) => {
+      const cls = i === a.fastestIdx ? 'fastest' : (i === a.slowestIdx ? 'slowest' : '');
+      return `<tr><td>${i+1}바퀴</td><td class="${cls}">${formatSecToMMSS(l)}</td></tr>`;
+    }).join('');
+    const changeParts = [];
+    for(let i=1;i<5;i++){
+      const diff = Math.round(latest.laps[i]-latest.laps[i-1]);
+      changeParts.push(Math.abs(diff) < 1 ? `${i}→${i+1}바퀴 비슷` : `${i}→${i+1}바퀴 ${diff>0?'+':''}${diff}초`);
+    }
+    const lateDrop = a.trend > 1.2
+      ? `있음 (4~5바퀴가 1~2바퀴보다 평균 약 ${a.trend.toFixed(1)}초 느려짐)`
+      : '뚜렷한 저하 없음';
+
+    box.innerHTML = `
+      <div class="ai-facts" style="margin-bottom:12px;">
+        <div><span class="k">총 기록</span><span class="v">${formatSecToMMSS(latest.totalSec)}</span></div>
+        <div><span class="k">평균 400m</span><span class="v">${formatSecToMMSS(a.avg)}</span></div>
+        <div><span class="k">가장 빠른 바퀴</span><span class="v">${a.fastestIdx+1}바퀴 (${formatSecToMMSS(latest.laps[a.fastestIdx])})</span></div>
+        <div><span class="k">가장 느린 바퀴</span><span class="v">${a.slowestIdx+1}바퀴 (${formatSecToMMSS(latest.laps[a.slowestIdx])})</span></div>
+      </div>
+      <table class="lap-table">
+        <thead><tr><th>바퀴</th><th>기록</th></tr></thead>
+        <tbody>${lapRows}</tbody>
+      </table>
+      <div class="ai-facts">
+        <div style="grid-column: span 2;"><span class="k">바퀴별 기록 변화</span><span class="v" style="font-size:12px;">${changeParts.join(', ')}</span></div>
+        <div style="grid-column: span 2;"><span class="k">후반 페이스 저하 여부</span><span class="v" style="font-size:12px;">${lateDrop}</span></div>
+      </div>
+    `;
+  }
+
+  function getWorkoutHistory(sessionKey){
+    return run2kmWorkoutLog.filter(w => w.sessionKey === sessionKey).sort((a,b) => b.date.localeCompare(a.date));
+  }
+  function getLatestWorkout(){
+    if(run2kmWorkoutLog.length === 0) return null;
+    return [...run2kmWorkoutLog].sort((a,b) => b.date.localeCompare(a.date))[0];
+  }
+
+  // ① 현재 수행능력 파악 (시험기록 기반 "실제 데모된" 400m 평균 페이스)
+  function getCurrentAbility(best){
+    if(!best) return null;
+    return { avg400: best.totalSec / 5, totalSec: best.totalSec };
+  }
+
+  function avg(arr){ return arr.reduce((a,b)=>a+b,0) / arr.length; }
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+  // 목표가 훈련추천에 실제로 반영되도록: 현재 400m 페이스와 목표 400m 페이스의 차이(E)를 사용해
+  // "격차의 일부만" 보수적으로 좁히는 초기 페이스를 계산한다 (목표 페이스로 바로 뛰게 하지 않음).
+  //
+  // 주의: 이 계산은 임시 추정치이며 최종 AI 코치 알고리즘으로 확정된 것이 아니다.
+  // 아래 데이터가 이제 앱에 저장되고 있으므로, 추후 알고리즘을 설계할 때는 이 함수를
+  // 대체/확장해서 다음 신호들을 함께 반영할 수 있다:
+  // 시험일까지 남은 기간(examDate), 최근 시험기록 변화 추세, 훈련별 실제 페이스,
+  // 세트별 기록·반복 수·회복시간·성공/실패·실패한 세트, RPE, (선택) 심박수,
+  // 최근 훈련 빈도 및 훈련량(run2kmInfo). 지금은 이 함수를 바꾸지 않는다.
+  function estimateInitialIntervalPace(current400, goal){
+    if(!goal) return Math.round(current400) - 2;
+    const goal400 = (goal.min*60 + goal.sec) / 5;
+    const gap = current400 - goal400; // 양수 = 더 빨라져야 함
+    if(gap <= 0) return Math.round(current400) - 1; // 이미 목표 이상이면 소폭만 자극
+    const adj = clamp(gap * 0.5, 1, 6); // 격차의 절반, 최소1초~최대6초로 보수적으로 제한
+    return Math.round(current400 - adj);
+  }
+
+  // ⑤~⑧ 세트별 실제 기록 분석: 수행률/페이스차/후반저하/패턴/마지막성공세트
+  function analyzeWorkoutEntry(entry){
+    const perSet = entry.perSetReps;
+    let completedSets, lateDrop = null, pattern = null, lastSuccessSet = null;
+
+    if(perSet && perSet.length){
+      completedSets = perSet.length;
+      lastSuccessSet = perSet.length;
+      if(perSet.length >= 4){
+        const half = Math.floor(perSet.length / 2);
+        const firstAvg = avg(perSet.slice(0, half));
+        const secondAvg = avg(perSet.slice(half));
+        lateDrop = secondAvg - firstAvg;
+      }
+      if(entry.result === 'fail'){
+        const early = perSet.slice(0, Math.min(2, perSet.length));
+        const earlyStable = early.length < 2 || (Math.max(...early) - Math.min(...early) <= 1.5);
+        if(perSet.length <= 2 || !earlyStable){
+          pattern = '첫 세트 이후부터 목표 페이스를 유지하지 못한 패턴';
+        } else if(lateDrop !== null && lateDrop > 2){
+          pattern = '초반에는 목표 페이스를 안정적으로 유지했으나 후반부에 점진적으로 페이스가 저하된 패턴';
+        } else {
+          pattern = '특정 구간에서 갑자기 무너진 패턴 (세트별 기록만으로는 원인이 뚜렷하지 않음)';
+        }
+      } else {
+        pattern = (lateDrop !== null && lateDrop > 2) ? '성공했지만 후반부 페이스 저하가 뚜렷한 패턴' : '전 구간 안정적으로 유지된 패턴';
+      }
+    } else if(entry.result === 'fail' && entry.failedAtSet){
+      completedSets = entry.failedAtSet - 1;
+      lastSuccessSet = completedSets;
+      pattern = entry.failedAtSet <= 2
+        ? '초반부터 목표 페이스를 유지하지 못한 것으로 보여요 (세트별 상세 기록은 없어서 정확한 저하 패턴은 알 수 없어요)'
+        : `${entry.failedAtSet}세트에서 중단됐어요 (세트별 상세 기록은 없어서 정확한 저하 패턴은 알 수 없어요)`;
+    } else {
+      completedSets = entry.result === 'success' ? entry.targetSets : null;
+      lastSuccessSet = completedSets;
+    }
+
+    const performanceRate = (completedSets !== null && entry.targetSets) ? Math.round(completedSets / entry.targetSets * 100) : null;
+    const paceDiff = entry.actualPaceSec - entry.targetPaceSec;
+
+    let qualityFlag;
+    if(entry.result === 'success'){
+      qualityFlag = (lateDrop !== null && lateDrop > 2) ? 'shaky-success' : 'stable-success';
+    } else if(pattern && pattern.includes('첫 세트')){
+      qualityFlag = 'early-fail';
+    } else if(pattern && pattern.includes('점진적으로')){
+      qualityFlag = 'late-fail';
+    } else {
+      qualityFlag = 'fail-unknown';
+    }
+
+    return { completedSets, performanceRate, paceDiff, lateDrop, pattern, lastSuccessSet, qualityFlag };
+  }
+
+  function parseRestSec(restText){
+    const m = String(restText).match(/(\d+)/);
+    return m ? parseInt(m[1]) : null;
+  }
+
+  // ⑨~⑩ 다음 훈련 조정: 성공 품질/실패 패턴에 따라 "한 번에 하나의 변수만" 바꾼다.
+  function buildAdjustment(entry, analysis){
+    const restSec = parseRestSec(entry.rest);
+    const base = { dist: entry.dist, paceSec: entry.targetPaceSec, sets: entry.targetSets, rest: entry.rest };
+
+    if(analysis.qualityFlag === 'stable-success'){
+      if(entry.targetSets < 8){
+        return { ...base, sets: entry.targetSets + 1,
+          reason:`지난 훈련(${entry.dist} × ${entry.targetSets}세트 @ ${entry.targetPaceSec}초)을 수행률 100%, 안정적으로(후반 저하 ${analysis.lateDrop !== null ? analysis.lateDrop.toFixed(1)+'초' : '뚜렷하지 않음'}) 완료했어요. 점진적 과부하 원칙에 따라 반복 횟수만 1세트 늘렸어요.` };
+      }
+      return { ...base, paceSec: entry.targetPaceSec - 1,
+        reason:`지난 훈련을 안정적으로 완료했고 세트 수가 이미 충분히 많아서, 이번엔 페이스만 1초 단축했어요.` };
+    }
+
+    if(analysis.qualityFlag === 'shaky-success'){
+      return { ...base,
+        reason:`목표는 달성했지만 후반부 페이스가 약 ${analysis.lateDrop.toFixed(1)}초 느려져서, 반복 횟수나 페이스를 그대로 늘리지 않고 이번 강도를 한 번 더 유지하며 안정성을 확인하려고 해요.` };
+    }
+
+    if(restSec !== null && restSec < 60 && analysis.qualityFlag !== 'stable-success'){
+      return { ...base, rest: (restSec + 15) + '초',
+        reason:`회복시간이 ${restSec}초로 짧은 편이었어요. 페이스나 반복량 대신 회복시간부터 늘려서 같은 조건에서 다시 시도해보는 게 합리적이라고 판단했어요.` };
+    }
+
+    if(analysis.qualityFlag === 'late-fail'){
+      const newSets = analysis.lastSuccessSet ? Math.max(analysis.lastSuccessSet, entry.targetSets - 2) : Math.max(entry.targetSets - 2, 3);
+      return { ...base, sets: newSets,
+        reason:`${analysis.pattern}. 반복량이 다소 과했을 가능성을 고려해서, 같은 페이스(${entry.targetPaceSec}초)는 유지하고 세트 수를 ${entry.targetSets}세트에서 ${newSets}세트로 줄였어요.` };
+    }
+
+    if(analysis.qualityFlag === 'early-fail'){
+      return { ...base, paceSec: entry.targetPaceSec + 2,
+        reason:`${analysis.pattern}. 페이스 자체가 과했을 가능성을 고려해서, 같은 세트 수(${entry.targetSets}세트)는 유지하고 페이스를 ${entry.targetPaceSec}초에서 ${entry.targetPaceSec+2}초로 소폭 완화했어요.` };
+    }
+
+    // fail-unknown: 세트별 상세 기록이 없어 원인을 특정할 수 없는 경우 — 데이터를 임의로 만들지 않고 보수적으로만 조정
+    const newSets = Math.max(entry.targetSets - 1, 3);
+    return { ...base, sets: newSets,
+      reason:`세트별 상세 기록이 없어서 실패 원인(강도/반복량/회복시간/컨디션 중 무엇이었는지)을 정확히 특정하기는 어려워요. 보수적으로 세트 수만 ${entry.targetSets}세트에서 ${newSets}세트로 줄여서 다시 시도해볼 것을 권장해요.` };
+  }
+
+  // 목표가 현재보다 지나치게 공격적인 경우, 5초 단위의 중간 목표를 단계적으로 제시한다.
+  function generateStepGoals(currentTotalSec, goalTotalSec, stepSec){
+    if(currentTotalSec <= goalTotalSec) return [];
+    const steps = [];
+    let t = currentTotalSec - stepSec;
+    while(t > goalTotalSec){ steps.push(t); t -= stepSec; }
+    steps.push(goalTotalSec);
+    return steps;
+  }
+
+  // 훈련 유형별 "일반적 효과"에 대한 연구 근거만 다룬다 (구체적 처방 수치는 다루지 않음).
+  const SESSION_RESEARCH = {
+    easy: {
+      name:'저강도 러닝(Easy run)', purpose:'유산소 기초 체력 향상 및 회복',
+      level:'B', levelLabel:'중간 수준 근거',
+      summary:'RCT를 종합한 체계적 문헌고찰·메타분석에서, 전체 훈련 대부분을 저강도로 채우는 배분이 역치 중심 훈련보다 경기력 향상에 더 유리하다는 결과(중간 효과크기)가 나왔어요. 다만 포함된 연구 수가 많지 않아요.',
+      sources:[{ text:'Rosenblat MA, et al. (2019). Polarized vs. Threshold Training Intensity Distribution. J Strength Cond Res, 33(12).', url:'https://journals.lww.com/nsca-jscr/fulltext/2019/12000/polarized_vs__threshold_training_intensity.34.aspx' },
+               { text:'(2024). Effect of Polarized Training on VO2max and Work Economy: Systematic Review.', url:'https://pmc.ncbi.nlm.nih.gov/articles/PMC11679080/' }]
+    },
+    threshold: {
+      name:'역치/템포 훈련', purpose:'젖산역치 및 지속적인 고강도 수행능력 향상',
+      level:'D', levelLabel:'코칭/실전 기반',
+      summary:'역치 훈련 단독의 효과만 분리해서 검증한 체계적 문헌고찰·메타분석은 이번 검색에서 찾지 못했어요. 직접적인 연구 근거는 제한적이지만, 코칭 현장에서는 널리 쓰이는 방법이에요.',
+      sources:[]
+    },
+    interval: {
+      name:'고강도 인터벌', purpose:'최대산소섭취능력(VO2max) 및 고강도 유산소 수행능력 향상',
+      level:'C', levelLabel:'제한적 근거',
+      summary:'한 RCT는 4주 HIIT가 러닝 이코노미·최고속도는 개선했지만 5km 완주기록·페이싱은 유의하게 바꾸지 못했다고 보고했고, 다른 RCT는 HIIT가 1500m·5000m 기록을 유의하게 단축시켰다고 보고해서 연구 간 결과가 엇갈려요.',
+      sources:[{ text:'(2017) 4-week HIIT pacing 5km trial (recreational runners RCT).', url:'https://pmc.ncbi.nlm.nih.gov/articles/PMC5649866/' },
+               { text:'(2024) HIIT & resistance training in well-trained runners (RCT).', url:'https://pubmed.ncbi.nlm.nih.gov/38870098/' }]
+    },
+    recovery: {
+      name:'회복(가벼운 조깅 또는 휴식)', purpose:'피로 해소, 훈련량 급증 방지, 다음 고강도 훈련 준비',
+      level:'B', levelLabel:'중간 수준 근거',
+      summary:'22개 코호트 연구를 종합한 메타분석에서, 최근 1주 훈련량이 최근 4주 평균의 1.5배를 넘으면 부상 위험이 유의하게 높아진다고 보고했어요.',
+      sources:[{ text:'(2025) ACWR for predicting sports injury risk: SR & meta-analysis of 22 cohort studies.', url:'https://pmc.ncbi.nlm.nih.gov/articles/PMC12487117/' }]
+    }
+  };
+
+  // ---- 훈련 추천 3개 선정: 핵심 고강도 / 중강도-역치 / 저강도-회복 ----
+  function buildRecommendations(best, goal, info){
+    const single = run2kmRecords.length < 2;
+    const ability = getCurrentAbility(best);
+    const gapSec = goal ? Math.round(best.totalSec - (goal.min*60+goal.sec)) : null;
+    const hedge = single ? '현재 데이터가 2km 기록 1개뿐이므로 특정 약점을 확정하기는 어렵습니다. 따라서 현재 기록에서 무리 없이 수행 가능한 범용적인 향상 훈련을 우선 추천합니다. ' : '';
+    const dataNote = run2kmWorkoutLog.length === 0 ? ' 현재 훈련 데이터가 부족하기 때문에 개인화 정확도가 제한적입니다.' : '';
+
+    const intervalHist = getWorkoutHistory('interval');
+    const thresholdHist = getWorkoutHistory('threshold');
+
+    function calibrate(sessionKey, history, paceOffset){
+      if(history.length > 0){
+        const last = history[0];
+        const analysis = analyzeWorkoutEntry(last);
+        const adj = buildAdjustment(last, analysis);
+        return { dist: adj.dist, paceSec: adj.paceSec, sets: adj.sets, rest: adj.rest, freq:'주 1회',
+          personalReason: adj.reason, feasReason: `직전 ${sessionKey === 'interval' ? '인터벌' : '역치'} 수행 결과를 기준으로 계산했어요(동일 훈련의 과거 수행 결과 반영).` };
+      }
+      if(!ability) return null;
+      const paceSec = estimateInitialIntervalPace(ability.avg400, goal) + paceOffset;
+      const sets = (info && info.weeklyFreq !== null) ? 4 : 3;
+      return { dist:'400m', paceSec, sets, rest:'2분', freq:'주 1회',
+        personalReason: `${hedge}현재 시험 기록의 평균 400m 페이스(약 ${Math.round(ability.avg400)}초)와 목표 페이스의 차이를 절반만 반영해서 보수적으로 설정했어요(목표 페이스를 그대로 강요하지 않음).${dataNote}`,
+        feasReason: `목표 페이스가 아니라 실제로 완주한 시험 기록을 기준으로 계산했고, 데이터가 없어 반복 횟수도 최소치로 설정했어요.` };
+    }
+
+    const intervalCal = calibrate('interval', intervalHist, 0);
+    const thresholdCal = calibrate('threshold', thresholdHist, 3); // 역치는 인터벌보다 여유 있게
+
+    const picks = [];
+    picks.push({ key:'interval', role:'핵심 고강도 훈련', dist:intervalCal.dist, paceText:`${intervalCal.paceSec}초/${intervalCal.dist}`,
+      sets:`${intervalCal.sets}세트`, rest:intervalCal.rest, freq:intervalCal.freq, difficulty: intervalCal.sets<=3?'쉬움~보통':'보통',
+      personalReason: intervalCal.personalReason, feasReason: intervalCal.feasReason });
+    picks.push({ key:'threshold', role:'중강도 · 지속능력 훈련', dist: thresholdHist.length? thresholdCal.dist : '1.2~1.6km 지속',
+      paceText: thresholdHist.length ? `${thresholdCal.paceSec}초/${thresholdCal.dist}` : `${thresholdCal.paceSec}초/400m 환산`,
+      sets: thresholdHist.length ? `${thresholdCal.sets}세트` : '1세트(지속)', rest: thresholdCal.rest, freq: thresholdCal.freq, difficulty:'보통',
+      personalReason: thresholdCal.personalReason, feasReason: thresholdCal.feasReason });
+    const lowVolume = info && info.weeklyVolumeKm !== null && info.weeklyVolumeKm < 10;
+    picks.push({ key:'easy', role:'저강도 · 보조/회복 훈련', dist:'2~3km', paceText:'대화 가능한 편안한 강도', sets:'—', rest:'—', freq:'주 1~2회', difficulty:'쉬움',
+      personalReason: lowVolume ? '현재 주당 러닝량이 적어 유산소 기초를 먼저 다지는 게 우선일 수 있어요.' : '고강도 훈련 효과를 유지하고 부상 위험을 낮추려면 저강도 러닝으로 기초 유산소 능력을 함께 유지해야 해요.',
+      feasReason:'가장 낮은 강도의 훈련이라 현재 수준과 무관하게 수행 가능해요.' });
+
+    return picks;
+  }
+
+  // ---- AI 훈련추천 화면 ----
+  function renderR2AI(best, goal, info){
+    const box = $('r2-ai-content');
+    if(!best){
+      box.innerHTML = '<p class="empty-note">2km 기록을 하나만 입력해도 AI 훈련추천을 볼 수 있어요.</p>';
+      return;
+    }
+    const picks = buildRecommendations(best, goal, info);
+
+    let html = `
+      <div class="hero-row" style="margin-bottom:16px;">
+        <div class="hero-cell"><div class="hero-label">현재 기록</div><div class="hero-figure lg">${formatSecToMMSS(best.totalSec)}</div></div>
+        <div class="hero-cell ${goal ? 'accent' : ''}"><div class="hero-label">목표 기록</div><div class="hero-figure lg" style="${goal?'':'color:var(--ink-3); font-size:16px;'}">${goal ? goal.min+':'+String(goal.sec).padStart(2,'0') : '미설정'}</div></div>
+      </div>
+    `;
+
+    if(goal){
+      const current400 = best.totalSec/5, goal400 = (goal.min*60+goal.sec)/5;
+      html += `<div class="ai-block"><div class="ai-label">400m 환산 페이스</div>
+        <div class="ai-facts">
+          <div><span class="k">현재 400m 평균</span><span class="v">${Math.round(current400)}초</span></div>
+          <div><span class="k">목표 400m 평균</span><span class="v">${Math.round(goal400)}초</span></div>
+          <div><span class="k">페이스 차이</span><span class="v">${Math.round(current400-goal400)}초</span></div>
+        </div></div>`;
+
+      const steps = generateStepGoals(best.totalSec, goal.min*60+goal.sec, 5);
+      if(steps.length > 2){
+        html += `<div class="ai-block"><div class="ai-label">중간 목표 (격차가 커서 단계적으로 제안)</div>
+          <p class="ai-text">${formatSecToMMSS(best.totalSec)} → ${steps.map(s => formatSecToMMSS(s)).join(' → ')}</p>
+          <p class="ai-caveat">목표까지 격차가 커서 한 번에 도달하도록 강요하지 않아요. 각 단계를 통과할 때마다 다음 단계 훈련으로 조정할 수 있어요.</p></div>`;
+      }
+    }
+
+    // 이번 훈련 분석 + 다음 훈련 조정 (가장 최근 훈련 수행 기록 기준)
+    const latestWorkout = getLatestWorkout();
+    if(latestWorkout){
+      const analysis = analyzeWorkoutEntry(latestWorkout);
+      const adj = buildAdjustment(latestWorkout, analysis);
+      html += `
+        <div class="ai-block">
+          <div class="ai-label">이번 훈련 분석 (${latestWorkout.date})</div>
+          <div class="ai-facts">
+            <div><span class="k">목표</span><span class="v">${latestWorkout.dist} × ${latestWorkout.targetSets} / ${latestWorkout.targetPaceSec}초 / 회복 ${latestWorkout.rest}</span></div>
+            <div><span class="k">실제</span><span class="v">${analysis.completedSets !== null ? latestWorkout.dist+' × '+analysis.completedSets+' 완료' : (latestWorkout.result==='success'?'전체 완료':'중단')}</span></div>
+            <div><span class="k">수행률</span><span class="v">${analysis.performanceRate !== null ? analysis.performanceRate+'%' : '정보 부족'}</span></div>
+            <div><span class="k">목표 대비 실제 페이스</span><span class="v">${analysis.paceDiff > 0 ? '+' : ''}${analysis.paceDiff.toFixed(1)}초</span></div>
+            <div><span class="k">후반 페이스 저하</span><span class="v">${analysis.lateDrop !== null ? (analysis.lateDrop>0?'+':'')+analysis.lateDrop.toFixed(1)+'초' : '세트별 기록 없음'}</span></div>
+          </div>
+          <p class="ai-text" style="margin-top:8px;"><b style="color:var(--ink-3); font-weight:600;">판단</b><br>${analysis.pattern || (latestWorkout.result==='success' ? '전 구간 안정적으로 수행됐어요.' : '세트별 상세 기록이 없어 패턴을 특정하기 어려워요.')}</p>
+          <p class="ai-text" style="margin-top:8px;"><b style="color:var(--ink-3); font-weight:600;">다음 훈련 조정</b><br>${adj.reason}</p>
+        </div>
+      `;
+    }
+
+    html += picks.map((p) => {
+      const research = SESSION_RESEARCH[p.key];
+      return `
+        <div class="plan-day ${p.role === '핵심 고강도 훈련' ? 'plan-day--top' : ''}">
+          <div class="plan-day-head"><span class="dow">${p.role} · ${research.name}</span></div>
+          <div class="plan-day-body">
+            <div class="plan-detail-row"><span class="k">목적</span><span class="v" style="text-align:right; max-width:60%;">${research.purpose}</span></div>
+            <div class="plan-detail-row"><span class="k">거리</span><span class="v">${p.dist}</span></div>
+            <div class="plan-detail-row"><span class="k">페이스/강도</span><span class="v">${p.paceText}</span></div>
+            <div class="plan-detail-row"><span class="k">세트/반복</span><span class="v">${p.sets}</span></div>
+            <div class="plan-detail-row"><span class="k">회복</span><span class="v">${p.rest}</span></div>
+            <div class="plan-detail-row"><span class="k">주당 권장 횟수</span><span class="v">${p.freq}</span></div>
+            <p class="ai-text" style="margin:10px 0 4px;"><b style="color:var(--ink-3); font-weight:600;">왜 이 사용자에게 필요한가</b><br>${p.personalReason}</p>
+            <p class="ai-text" style="margin:6px 0;"><b style="color:var(--ink-3); font-weight:600;">예상 난이도</b> ${p.difficulty}</p>
+            <p class="ai-text" style="margin:6px 0;"><b style="color:var(--ink-3); font-weight:600;">현재 수준에서 수행 가능하다고 판단한 이유</b><br>${p.feasReason}</p>
+            <details class="collapsible" style="margin-top:10px; border-color:var(--line);">
+              <summary>근거 보기</summary>
+              <div class="collapsible-body">
+                <p class="ai-text" style="font-weight:600; margin-bottom:4px;">[훈련 유형 자체의 연구 근거]</p>
+                <span class="chip chip-mid">근거 수준 ${research.level} · ${research.levelLabel}</span>
+                <p class="ai-text" style="margin-top:8px;">${research.summary}</p>
+                ${research.sources.length ? `<div class="evi-sources">${research.sources.map(src => `· <a href="${src.url}" target="_blank" rel="noopener">${src.text}</a>`).join('<br>')}</div>` : ''}
+                <p class="ai-text" style="font-weight:600; margin:12px 0 4px;">[이 처방(구체적 거리·페이스·세트수)에 대한 근거]</p>
+                <span class="chip chip-mid">근거 수준 E · 개인화 추론</span>
+                <p class="ai-text" style="margin-top:8px;">${p.feasReason} 이 구체적인 수치까지 직접 검증한 연구는 없으며, 사용자의 기록과 입력한 데이터를 바탕으로 AI가 개인화하여 추정한 값이에요.</p>
+              </div>
+            </details>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    box.innerHTML = html;
+  }
+
+  // ---- 페이스 전략 ----
+  function renderR2Strategy(best, goal){
+    const box = $('r2-strategy');
+    if(!goal){
+
+      box.innerHTML = '<p class="empty-note">목표 기록을 입력하면 여러 페이스 전략을 비교해드려요.</p>';
+      return;
+    }
+    const totalSec = goal.min*60 + goal.sec;
+    const evenLap = totalSec / 5;
+
+    // 전략 A: 균등, 전략 B: 약간 빠른 출발 후 안정, 전략 C: 완만한 U자(중반 살짝 여유)
+    const strategyA = [evenLap, evenLap, evenLap, evenLap, evenLap];
+    const strategyB = [evenLap-2, evenLap, evenLap, evenLap+0.5, evenLap+1.5];
+    const strategyC = [evenLap-1, evenLap, evenLap+1, evenLap+1, evenLap-1];
+
+    function fmtStrategy(laps){ return laps.map(l => formatSecToMMSS(Math.round(l))).join(' / '); }
+
+    let userBasedHtml = '';
+    if(best){
+      const a = analyzeLaps(best.laps);
+      let advice;
+      if(a.pattern === '강한 positive split' || a.pattern === '약한 positive split'){
+        advice = `현재 기록에서는 초반 대비 중후반 페이스가 떨어지는 패턴이 나타났어요(${fmtStrategy(best.laps)}). 다음 시험에서는 첫 400m를 지금보다 1~2초 늦추고, 중반 3바퀴의 편차를 줄이는 전략을 먼저 시도해보는 게 합리적일 수 있어요.`;
+      } else if(a.pattern === '전체적으로 불안정한 페이스'){
+        advice = `바퀴 간 편차가 커서 일정한 흐름을 찾기 어려워요(${fmtStrategy(best.laps)}). 균등 페이스(전략 A)로 감각을 먼저 익히는 훈련이 도움이 될 수 있어요.`;
+      } else if(a.pattern === '균등 페이스'){
+        advice = `현재도 비교적 균등한 페이스를 유지하고 있어요(${fmtStrategy(best.laps)}). 지금 방식을 유지하면서 전체 페이스를 조금씩 끌어올리는 방향이 자연스러워요.`;
+      } else {
+        advice = `현재 기록(${fmtStrategy(best.laps)})을 기준으로 보면, 초반 여유를 약간 더 두는 전략(전략 B)을 시험해볼 만해요.`;
+      }
+      userBasedHtml = `<div class="strategy-card recommended"><div class="st-head"><span class="st-name">현재 기록 기반 제안</span></div><p>${advice}</p></div>`;
+    }
+
+    box.innerHTML = `
+      ${userBasedHtml}
+      <div class="strategy-card"><div class="st-head"><span class="st-name">전략 A · 균등 페이스</span></div><div class="strategy-splits">${fmtStrategy(strategyA)}</div><p>5바퀴를 최대한 동일한 페이스로 유지하는 전략이에요.</p></div>
+      <div class="strategy-card"><div class="st-head"><span class="st-name">전략 B · 약간 빠른 출발</span></div><div class="strategy-splits">${fmtStrategy(strategyB)}</div><p>초반에 약간의 여유 속도를 내고 후반에 자연스럽게 페이스가 늦춰지는 것을 허용하는 전략이에요.</p></div>
+      <div class="strategy-card"><div class="st-head"><span class="st-name">전략 C · 중반 여유형</span></div><div class="strategy-splits">${fmtStrategy(strategyC)}</div><p>중반 2~3바퀴에서 살짝 여유를 두고 마지막 바퀴에서 다시 끌어올리는 전략이에요.</p></div>
+      <p class="ai-caveat">현재 근거상 지구력 종목의 페이스 전략 효과는 연구마다 결과가 다르고, imposed pacing과 self-selected pacing 사이의 우열도 일관되게 확인되지 않았어요. 위 전략 중 어느 것도 절대적인 정답은 아니며, 실제 훈련에서 시험해보고 자신에게 맞는 방식을 찾는 게 중요해요.</p>
+    `;
+  }
+
+  // ---- 기록 탭: 시험 2km 기록 목록 ----
+  function renderExamHistory(){
+    const box = $('r2-exam-recent-list');
+    if(!box) return;
+    const list = [...run2kmRecords].sort((a,b) => b.date.localeCompare(a.date));
+    if(list.length === 0){
+      box.innerHTML = '<p class="empty-note">저장된 시험 2km 기록이 없어요. 위에서 5바퀴 기록을 입력해보세요.</p>';
+      return;
+    }
+    box.innerHTML = list.map(r => `
+      <div class="recent-item">
+        <div class="ri-left">
+          <div class="ri-date">${r.date}</div>
+          <div><span class="ri-type ri-type--exam">시험 2km</span></div>
+          <div class="ri-main" style="margin-top:4px;">${formatSecToMMSS(r.totalSec)}</div>
+          <div class="ri-sub">${formatPaceFromSecPerKm(r.pace)}</div>
+        </div>
+        <button class="del-btn" onclick="deleteR2Record(${r.id})">✕</button>
+      </div>
+    `).join('');
+  }
+
+  // ---- 훈련 탭: AI 추천 훈련 수행 기록 목록 (RPE/심박수 포함) ----
+  function renderWorkoutHistory(){
+    const box = $('r2-workout-recent-list');
+    if(!box) return;
+    const list = [...run2kmWorkoutLog].sort((a,b) => b.date.localeCompare(a.date));
+    if(list.length === 0){
+      box.innerHTML = '<p class="empty-note">저장된 훈련 수행 기록이 없어요. 위에서 훈련 결과를 입력해보세요.</p>';
+      return;
+    }
+    box.innerHTML = list.map(w => {
+      const label = w.sessionKey === 'interval' ? '400m 인터벌' : '역치/지속주';
+      const resultText = w.result === 'success' ? '성공' : `실패 (${w.failedAtSet ? w.failedAtSet+'세트' : '중단'})`;
+      const extras = [];
+      if(w.rpe !== null && w.rpe !== undefined) extras.push(`RPE ${w.rpe}`);
+      if(w.heartRateAvg !== null && w.heartRateAvg !== undefined) extras.push(`평균심박 ${w.heartRateAvg}`);
+      if(w.heartRateMax !== null && w.heartRateMax !== undefined) extras.push(`최고심박 ${w.heartRateMax}`);
+      return `
+        <div class="recent-item">
+          <div class="ri-left">
+            <div class="ri-date">${w.date}</div>
+            <div><span class="ri-type ri-type--casual">훈련 수행</span></div>
+            <div class="ri-main" style="margin-top:4px;">${label} · ${w.dist} × ${w.targetSets} / ${w.targetPaceSec}초</div>
+            <div class="ri-sub">실제 평균 ${w.actualPaceSec}초 · ${resultText}${extras.length ? ' · ' + extras.join(' · ') : ''}</div>
+          </div>
+          <button class="del-btn" onclick="deleteR2Workout(${w.id})">✕</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderRun2km(){
+    const best = getBestR2();
+    renderR2Hero(best, run2kmGoal);
+    renderGoalInline();
+    renderR2AnalysisResult();
+    renderR2AI(best, run2kmGoal, run2kmInfo);
+    renderR2Strategy(best, run2kmGoal);
+    renderR2RecentList();
+
+    // 훈련 정보 입력창에 기존 값 반영
+    if(run2kmInfo){
+      $('p-weekly-freq').value = run2kmInfo.weeklyFreq;
+      $('p-weekly-vol').value = run2kmInfo.weeklyVolumeKm ?? '';
+    }
+  }
+
+  renderMain();
+</script>
+</body>
+</html>

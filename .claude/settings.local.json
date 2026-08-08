@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"C:\\\\Users\\\\POM\" -maxdepth 3 -iname \"package.json\" 2>/dev/null | grep -v node_modules; echo \"---\"; find \"C:\\\\Users\\\\POM\" -maxdepth 4 -iname \"*.git\" -type d 2>/dev/null)"
+    ]
+  }
+}

@@ -487,27 +487,39 @@
       <h1 class="event-title">훈련</h1>
       <p class="event-sub">AI 추천 훈련과 수행 결과 관리</p>
 
-      <p class="sec-label">AI가 계획한 이번 주 훈련</p>
-      <p class="ai-caveat" style="margin-top:-4px;">정식 주간 계획 알고리즘은 아직 준비 중이에요. 지금은 현재 기록·목표를 기준으로 한 AI 추천 훈련을 보여드려요.</p>
+      <p class="sec-label">이번 주 필요한 자극</p>
+      <p class="ai-caveat" style="margin-top:-4px;">정식 주간 계획 알고리즘은 아직 준비 중이에요. 지금은 현재 기록·목표를 기준으로, 목적별 대체 훈련(최대 2개)과 강도 3단계를 보여드려요. 대체 훈련 중 하나를 고른다고 이번 주 훈련량이나 고강도 횟수가 늘어나지는 않아요 — 같은 목적 안에서 하나만 수행하면 돼요.</p>
       <div class="block" id="r2-ai-content"></div>
 
       <p class="sec-label">예정된 훈련</p>
       <div class="block" id="train-weekly-plan"></div>
 
       <p class="sec-label">훈련 수행 결과 입력</p>
+      <p class="ai-caveat" style="margin-top:-4px;">위 훈련 카드의 "완료 → 결과 입력" 버튼을 누르면 아래 항목이 자동으로 채워져요. 직접 입력해도 괜찮아요.</p>
       <div class="panel panel--brand block">
         <div class="form-grid">
-          <div class="field"><label for="w-session">훈련 종류</label>
+          <div class="field"><label for="w-session">훈련 종류(목적·대체훈련)</label>
             <select id="w-session" style="background:var(--surface); border:1px solid var(--line-strong); border-radius:2px; padding:9px 10px; font-family:'Roboto Mono',monospace; font-size:13px; width:100%;">
-              <option value="interval">400m 인터벌(핵심 고강도)</option>
-              <option value="threshold">역치/지속주(중강도)</option>
+              <option value="interval:A">고강도 A · 400m 인터벌</option>
+              <option value="interval:B">고강도 B · 800m 인터벌</option>
+              <option value="threshold:A">중강도 A · 지속주</option>
+              <option value="threshold:B">중강도 B · 크루즈 인터벌</option>
+              <option value="easy:A">저강도 · 이지런</option>
+            </select>
+          </div>
+          <div class="field"><label for="w-intensity">선택한 강도</label>
+            <select id="w-intensity" style="background:var(--surface); border:1px solid var(--line-strong); border-radius:2px; padding:9px 10px; font-family:'Roboto Mono',monospace; font-size:13px; width:100%;">
+              <option value="light">가볍게</option>
+              <option value="recommended" selected>권장</option>
+              <option value="hard">강하게</option>
             </select>
           </div>
           <div class="field"><label for="w-dist">거리</label><input type="text" id="w-dist" placeholder="예: 400m" value="400m"></div>
           <div class="field"><label for="w-target-pace">목표 페이스(초)</label><input type="number" id="w-target-pace" min="1" step="1" placeholder="예: 80"></div>
           <div class="field"><label for="w-actual-pace">실제 페이스(초, 평균)</label><input type="number" id="w-actual-pace" min="1" step="1" placeholder="예: 82"></div>
           <div class="field"><label for="w-sets">세트 수(목표)</label><input type="number" id="w-sets" min="1" step="1" placeholder="예: 6"></div>
-          <div class="field"><label for="w-rest">회복시간</label><input type="text" id="w-rest" placeholder="예: 80초" value="90초"></div>
+          <div class="field"><label for="w-rest">처방된 회복시간</label><input type="text" id="w-rest" placeholder="예: 80초" value="90초"></div>
+          <div class="field"><label for="w-actual-rest">실제 회복시간(초)</label><input type="number" id="w-actual-rest" min="0" step="1" placeholder="예: 95"></div>
           <div class="field"><label for="w-result">결과</label>
             <select id="w-result" style="background:var(--surface); border:1px solid var(--line-strong); border-radius:2px; padding:9px 10px; font-family:'Roboto Mono',monospace; font-size:13px; width:100%;">
               <option value="success">성공</option>
@@ -614,11 +626,53 @@
   // 2km 달리기 전용 데이터 (다른 5종목과 별도로 관리)
   // ---------------------------------------------------------------
   const run2kmRecords = [];       // 시험 2km 기록: {id, date, laps:[s1..s5](초), totalSec, totalMin, pace}
-  // 훈련 수행 기록: {id, date, sessionKey, dist, targetPaceSec, actualPaceSec, targetSets, rest,
-  //                  result:'success'|'fail', failedAtSet:number|null, perSetReps:number[]|null}
+  // 훈련 수행 기록: {id, date, purposeKey, variantKey, intensityChoice, sessionKey(=purposeKey, 하위호환),
+  //                  dist, targetPaceSec, actualPaceSec, targetSets, rest, actualRestSec,
+  //                  result:'success'|'fail', failedAtSet:number|null, perSetReps:number[]|null,
+  //                  rpe, heartRateAvg, heartRateMax}
   const run2kmWorkoutLog = [];
   let run2kmGoal = null;          // 목표 기록: {min, sec, totalMin, pace}
   let run2kmInfo = null;          // 최소 훈련 정보: {weeklyFreq, weeklyVolumeKm}
+
+  // ---------------------------------------------------------------
+  // 훈련 목적(purpose) · 대체 훈련(variant) 정의
+  // 연구 검증 결과(2차 라운드 Topic 1) 반영:
+  //  - 동일 목적을 달성하는 세션 포맷은 최대 2개까지만 제공한다 (선택 과부하 방지, 실무 휴리스틱).
+  //  - "완전히 동등한 대체재"가 아니라 "동일 목적, 유사 자극 프로파일"로 취급한다.
+  //  - 대체 훈련을 고른다고 주간 고강도 횟수·훈련량이 늘지 않는다 (주당 권장 횟수는 목적 단위로 고정).
+  // ---------------------------------------------------------------
+  const PURPOSES = [
+    { key:'interval',  label:'고강도 자극',   sub:'VO2max · 2km 특이적 페이스 적응', freq:'주 1회' },
+    { key:'threshold', label:'중강도 자극',   sub:'젖산역치 · 지속 수행능력',        freq:'주 1회' },
+    { key:'easy',      label:'저강도',        sub:'유산소 기초 · 회복',              freq:'주 1~2회' }
+  ];
+
+  // structureType: 'interval'(반복+회복) | 'continuous'(단일 지속주)
+  // unitMultiplier: 400m 환산 페이스에 곱해 해당 반복거리의 페이스를 추정할 때 쓰는 배수 (400m=1, 800m=2)
+  // distRangeKm: continuous 타입에서 강도 3단계(가볍게/권장/강하게)가 오갈 거리 범위 [최소,최대] (기존 앱에 이미 있던 범위를 그대로 재사용)
+  const SESSION_VARIANTS = {
+    interval: [
+      { key:'A', name:'400m 인터벌', dist:'400m', structureType:'interval', unitMultiplier:1, restText:'2분', minReps:2 },
+      { key:'B', name:'800m 인터벌', dist:'800m', structureType:'interval', unitMultiplier:2, restText:'3분', minReps:2 }
+    ],
+    threshold: [
+      { key:'A', name:'지속주',       dist:null,   structureType:'continuous', distRangeKm:[1.2,1.6] },
+      { key:'B', name:'크루즈 인터벌', dist:'800m', structureType:'interval',   unitMultiplier:2, restText:'75초', minReps:2 }
+    ],
+    easy: [
+      { key:'A', name:'이지런', dist:null, structureType:'continuous', distRangeKm:[2,3] }
+    ]
+  };
+
+  const INTENSITY_TIERS = [
+    { key:'light',       label:'가볍게' },
+    { key:'recommended', label:'권장' },
+    { key:'hard',         label:'강하게' }
+  ];
+  // 카드별로 사용자가 고른 강도 단계를 기억한다 (기본값 'recommended'). 키 형식: "purposeKey:variantKey"
+  const selectedTier = {};
+  function tierKey(purposeKey, variantKey){ return purposeKey + ':' + variantKey; }
+  function getSelectedTier(purposeKey, variantKey){ return selectedTier[tierKey(purposeKey, variantKey)] || 'recommended'; }
 
   // ---------------------------------------------------------------
   // 시험일 · 장기/주간 계획 데이터 모델 (뼈대만 정의)
@@ -886,12 +940,15 @@
   function addR2Workout(){
     const errEl = $('w-error');
     errEl.textContent = '';
-    const sessionKey = $('w-session').value;
+    const [purposeKey, variantKey] = $('w-session').value.split(':');
+    const intensityChoice = $('w-intensity').value;
     const dist = $('w-dist').value.trim() || '400m';
-    const targetPaceSec = parseFloat($('w-target-pace').value);
-    const actualPaceSec = parseFloat($('w-actual-pace').value);
-    const targetSets = parseInt($('w-sets').value);
+    const isEasy = purposeKey === 'easy';
+    let targetPaceSec = parseFloat($('w-target-pace').value);
+    let actualPaceSec = parseFloat($('w-actual-pace').value);
+    let targetSets = parseInt($('w-sets').value);
     const rest = $('w-rest').value.trim() || '—';
+    const actualRestSec = $('w-actual-rest').value ? parseInt($('w-actual-rest').value) : null;
     const result = $('w-result').value;
     const failedAtSet = $('w-failed-set').value ? parseInt($('w-failed-set').value) : null;
     const date = $('w-date').value;
@@ -902,14 +959,24 @@
     const heartRateMax = $('w-hr-max').value ? parseInt($('w-hr-max').value) : null;
 
     if(!date){ errEl.textContent = '날짜를 입력해주세요.'; return; }
-    if(!targetPaceSec || targetPaceSec <= 0){ errEl.textContent = '목표 페이스(초)를 입력해주세요.'; return; }
-    if(!actualPaceSec || actualPaceSec <= 0){ errEl.textContent = '실제 페이스(초)를 입력해주세요.'; return; }
-    if(!targetSets || targetSets <= 0){ errEl.textContent = '세트 수를 입력해주세요.'; return; }
+    if(!isEasy){
+      if(!targetPaceSec || targetPaceSec <= 0){ errEl.textContent = '목표 페이스를 입력해주세요.'; return; }
+      if(!actualPaceSec || actualPaceSec <= 0){ errEl.textContent = '실제 페이스를 입력해주세요.'; return; }
+    } else {
+      targetPaceSec = isNaN(targetPaceSec) ? null : targetPaceSec;
+      actualPaceSec = isNaN(actualPaceSec) ? null : actualPaceSec;
+    }
+    if(isNaN(targetSets) || targetSets <= 0) targetSets = 1;
     if(result === 'fail' && failedAtSet !== null && (failedAtSet <= 0 || failedAtSet > targetSets)){ errEl.textContent = '실패한 세트는 1~세트 수 사이여야 해요.'; return; }
     if(rpe !== null && (rpe < 1 || rpe > 10)){ errEl.textContent = 'RPE는 1~10 사이로 입력해주세요.'; return; }
 
-    run2kmWorkoutLog.push({ id: nextId++, date, sessionKey, dist, targetPaceSec, actualPaceSec, targetSets, rest, result, failedAtSet: result === 'fail' ? failedAtSet : null, perSetReps: (perSetReps && perSetReps.length) ? perSetReps : null, rpe, heartRateAvg, heartRateMax });
-    $('w-actual-pace').value=''; $('w-failed-set').value=''; $('w-persets').value=''; $('w-rpe').value=''; $('w-hr-avg').value=''; $('w-hr-max').value='';
+    run2kmWorkoutLog.push({
+      id: nextId++, date, purposeKey, variantKey, intensityChoice, sessionKey: purposeKey,
+      dist, targetPaceSec, actualPaceSec, targetSets, rest, actualRestSec,
+      result, failedAtSet: result === 'fail' ? failedAtSet : null,
+      perSetReps: (perSetReps && perSetReps.length) ? perSetReps : null, rpe, heartRateAvg, heartRateMax
+    });
+    $('w-actual-pace').value=''; $('w-actual-rest').value=''; $('w-failed-set').value=''; $('w-persets').value=''; $('w-rpe').value=''; $('w-hr-avg').value=''; $('w-hr-max').value='';
     renderAll();
     showMainTab('screen-coach');
   }
@@ -1100,22 +1167,93 @@
   function avg(arr){ return arr.reduce((a,b)=>a+b,0) / arr.length; }
   function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
 
-  // 목표가 훈련추천에 실제로 반영되도록: 현재 400m 페이스와 목표 400m 페이스의 차이(E)를 사용해
+  // 목표가 훈련추천에 실제로 반영되도록: 현재 페이스와 목표 페이스의 차이를 사용해
   // "격차의 일부만" 보수적으로 좁히는 초기 페이스를 계산한다 (목표 페이스로 바로 뛰게 하지 않음).
-  //
   // 주의: 이 계산은 임시 추정치이며 최종 AI 코치 알고리즘으로 확정된 것이 아니다.
-  // 아래 데이터가 이제 앱에 저장되고 있으므로, 추후 알고리즘을 설계할 때는 이 함수를
-  // 대체/확장해서 다음 신호들을 함께 반영할 수 있다:
-  // 시험일까지 남은 기간(examDate), 최근 시험기록 변화 추세, 훈련별 실제 페이스,
-  // 세트별 기록·반복 수·회복시간·성공/실패·실패한 세트, RPE, (선택) 심박수,
-  // 최근 훈련 빈도 및 훈련량(run2kmInfo). 지금은 이 함수를 바꾸지 않는다.
-  function estimateInitialIntervalPace(current400, goal){
-    if(!goal) return Math.round(current400) - 2;
-    const goal400 = (goal.min*60 + goal.sec) / 5;
-    const gap = current400 - goal400; // 양수 = 더 빨라져야 함
-    if(gap <= 0) return Math.round(current400) - 1; // 이미 목표 이상이면 소폭만 자극
-    const adj = clamp(gap * 0.5, 1, 6); // 격차의 절반, 최소1초~최대6초로 보수적으로 제한
-    return Math.round(current400 - adj);
+  // 400m가 아닌 800m 등 다른 반복거리에도 "같은 계산식·같은 clamp 범위(1~6초)"를 그대로 적용한다 —
+  // 거리에 비례해서 늘리는 등의 추가 보정은 연구로 검증되지 않았으므로 하지 않는다.
+  // 400m가 아닌 800m 등에도 "같은 계산식·같은 clamp 범위"를 그대로 적용한다.
+  // 주의: 이 clamp(1~6초)는 400m 기준으로 이미 "임시 추정치"라고 표시돼 있던 값이며,
+  // 거리에 비례해서 늘리는 등의 추가 보정은 연구로 검증되지 않았으므로 하지 않는다(같은 식을 그대로 재사용).
+  function estimateInitialPaceForUnit(currentUnitSec, goalUnitSec){
+    if(goalUnitSec === null || goalUnitSec === undefined) return Math.round(currentUnitSec) - 2;
+    const gap = currentUnitSec - goalUnitSec;
+    if(gap <= 0) return Math.round(currentUnitSec) - 1;
+    const adj = clamp(gap * 0.5, 1, 6);
+    return Math.round(currentUnitSec - adj);
+  }
+
+  // ---------------------------------------------------------------
+  // 목적×대체훈련(variant) 단위 추천 계산
+  //  - 반복(interval) 타입: 과거에 같은 variant를 수행한 기록이 있으면 buildAdjustment(기존 "실패 후
+  //    핵심 변수 하나만 조정" 로직)를 그대로 재사용해 다음 처방을 계산한다. 없으면 현재 능력/목표로 초기 추정한다.
+  //  - 지속(continuous) 타입(지속주·이지런): 이번 프로토타입에서는 과거 수행 기반 자동 조정을 아직 적용하지
+  //    않는다(연구에서 검증된 조정 방식이 없어 임의로 만들지 않음). 강도 3단계로 정해진 범위 안에서만 거리를 오간다.
+  // ---------------------------------------------------------------
+  function getVariantHistory(purposeKey, variantKey){
+    return run2kmWorkoutLog
+      .filter(w => w.purposeKey === purposeKey && (!variantKey || w.variantKey === variantKey))
+      .sort((a,b) => b.date.localeCompare(a.date));
+  }
+
+  function computeVariantRecommended(purposeKey, variant, ability, goal){
+    if(variant.structureType === 'continuous'){
+      const [lo, hi] = variant.distRangeKm;
+      const mid = Math.round(((lo + hi) / 2) * 100) / 100;
+      if(purposeKey === 'easy'){
+        return { structureType:'continuous', distKm:mid, distRangeKm:variant.distRangeKm, paceText:'대화 가능한 편안한 강도', sets:null, rest:null, source:'estimate' };
+      }
+      // 중강도 지속주: 400m 환산 역치 페이스(인터벌 페이스 + 3초 여유) × 2.5 로 km당 페이스를 추정한다.
+      if(!ability) return null;
+      const current400 = ability.avg400 + 3;
+      const goal400 = goal ? (goal.min*60 + goal.sec)/5 + 3 : null;
+      const paceSec400 = estimateInitialPaceForUnit(current400, goal400);
+      const paceSecPerKm = Math.round(paceSec400 * 2.5);
+      return { structureType:'continuous', distKm:mid, distRangeKm:variant.distRangeKm, paceSecPerKm, sets:null, rest:null, source:'estimate' };
+    }
+
+    // interval 타입
+    const hist = getVariantHistory(purposeKey, variant.key);
+    if(hist.length > 0){
+      const last = hist[0];
+      const analysis = analyzeWorkoutEntry(last);
+      const adj = buildAdjustment(last, analysis);
+      return { structureType:'interval', dist:adj.dist, paceSec:adj.paceSec, sets:adj.sets, rest:adj.rest,
+        source:'history', reason:adj.reason };
+    }
+    if(!ability) return null;
+    const offset = purposeKey === 'threshold' ? 3 : 0; // 크루즈 인터벌은 역치 페이스(인터벌보다 3초 여유)를 기준으로 함
+    const mult = variant.unitMultiplier;
+    const currentUnit = (ability.avg400 + offset) * mult;
+    const goalUnit = goal ? ((goal.min*60 + goal.sec)/5 + offset) * mult : null;
+    const paceSec = estimateInitialPaceForUnit(currentUnit, goalUnit);
+    const baseReps = purposeKey === 'interval' ? (mult === 1 ? 4 : 2) : 3;
+    return { structureType:'interval', dist:variant.dist, paceSec, sets:baseReps, rest:variant.restText, source:'estimate' };
+  }
+
+  // "권장" 계산 결과에 강도 3단계를 적용한다.
+  // 연구 근거: 조정 시 부상 리스크가 낮은 변수(반복수·거리)를 우선 조정하는 것이 보수적이라는 원칙(2차 조사 Topic 2).
+  // 페이스·회복시간은 세 단계 모두 동일하게 유지한다 — 조정폭(%/초)이 연구로 검증되지 않았기 때문에
+  // 임의의 숫자를 만들지 않고, 이번 프로토타입에서는 반복수(또는 거리)만 단계별로 바꾼다.
+  function applyIntensityTier(rec, variant, tier){
+    if(!rec) return null;
+    if(rec.structureType === 'continuous'){
+      const [lo, hi] = rec.distRangeKm;
+      const distKm = tier === 'light' ? lo : tier === 'hard' ? hi : rec.distKm;
+      return { ...rec, distKm };
+    }
+    const base = rec.sets;
+    const minReps = variant.minReps || 2;
+    const sets = tier === 'light' ? Math.max(base - 1, minReps) : tier === 'hard' ? base + 1 : base;
+    return { ...rec, sets };
+  }
+
+  function buildVariantCard(purposeKey, variant, ability, goal, forceTier){
+    const recBase = computeVariantRecommended(purposeKey, variant, ability, goal);
+    if(!recBase) return null;
+    const tier = forceTier || getSelectedTier(purposeKey, variant.key);
+    const applied = applyIntensityTier(recBase, variant, tier);
+    return { purposeKey, variant, recBase, tier, applied };
   }
 
   // ⑤~⑧ 세트별 실제 기록 분석: 수행률/페이스차/후반저하/패턴/마지막성공세트
@@ -1157,7 +1295,7 @@
     }
 
     const performanceRate = (completedSets !== null && entry.targetSets) ? Math.round(completedSets / entry.targetSets * 100) : null;
-    const paceDiff = entry.actualPaceSec - entry.targetPaceSec;
+    const paceDiff = (entry.actualPaceSec != null && entry.targetPaceSec != null) ? entry.actualPaceSec - entry.targetPaceSec : null;
 
     let qualityFlag;
     if(entry.result === 'success'){
@@ -1173,8 +1311,17 @@
     return { completedSets, performanceRate, paceDiff, lateDrop, pattern, lastSuccessSet, qualityFlag };
   }
 
+  // "2분", "90초", "2분 30초" 등 분/초가 섞인 표기를 모두 초 단위로 변환한다.
+  // (이전 버전은 첫 숫자만 뽑아써서 "2분"을 2초로 잘못 해석하는 버그가 있었다 — 회복시간 조정 로직이
+  // 실제로는 이 값에 의존하므로, 잘못 파싱되면 "회복 17초" 같은 비상식적인 추천이 나올 수 있었다.)
   function parseRestSec(restText){
-    const m = String(restText).match(/(\d+)/);
+    const text = String(restText);
+    const minMatch = text.match(/(\d+)\s*분/);
+    const secMatch = text.match(/(\d+)\s*초/);
+    if(minMatch || secMatch){
+      return (minMatch ? parseInt(minMatch[1]) * 60 : 0) + (secMatch ? parseInt(secMatch[1]) : 0);
+    }
+    const m = text.match(/(\d+)/);
     return m ? parseInt(m[1]) : null;
   }
 
@@ -1259,50 +1406,84 @@
     }
   };
 
-  // ---- 훈련 추천 3개 선정: 핵심 고강도 / 중강도-역치 / 저강도-회복 ----
-  function buildRecommendations(best, goal, info){
-    const single = run2kmRecords.length < 2;
-    const ability = getCurrentAbility(best);
-    const gapSec = goal ? Math.round(best.totalSec - (goal.min*60+goal.sec)) : null;
-    const hedge = single ? '현재 데이터가 2km 기록 1개뿐이므로 특정 약점을 확정하기는 어렵습니다. 따라서 현재 기록에서 무리 없이 수행 가능한 범용적인 향상 훈련을 우선 추천합니다. ' : '';
-    const dataNote = run2kmWorkoutLog.length === 0 ? ' 현재 훈련 데이터가 부족하기 때문에 개인화 정확도가 제한적입니다.' : '';
+  // 대체 훈련(A/B) 간 "완전한 동등성"은 아니라는 점을 밝히는 근거 메모 (2차 조사 Topic 1).
+  // 저강도(easy)는 대체 훈련이 1개뿐이라 이 메모를 쓰지 않는다.
+  const VARIANT_EQUIV_NOTE = {
+    interval: '400m·800m 인터벌 모두 VO2max 자극이라는 같은 목적에 기여한다는 메타분석 근거가 있어요(Wen 외, 2019). 다만 소규모 엘리트 중장거리 선수 대상 연구(Fleckenstein 외, 2025)에서는 반복거리에 따라 목표 강도 근처에 머무는 시간이 달라질 수 있다고 보고돼서, 완전히 동일한 대체재가 아니라 "같은 목적, 유사한 자극"으로 이해해주세요.',
+    threshold: '지속주와 크루즈 인터벌 모두 젖산역치 자극이라는 같은 목적을 겨냥해요. 다만 이 두 형식을 직접 비교해 동등성을 검증한 연구는 확인되지 않아서, 코칭 현장의 통상적 분류를 따른 것이에요.'
+  };
 
-    const intervalHist = getWorkoutHistory('interval');
-    const thresholdHist = getWorkoutHistory('threshold');
-
-    function calibrate(sessionKey, history, paceOffset){
-      if(history.length > 0){
-        const last = history[0];
-        const analysis = analyzeWorkoutEntry(last);
-        const adj = buildAdjustment(last, analysis);
-        return { dist: adj.dist, paceSec: adj.paceSec, sets: adj.sets, rest: adj.rest, freq:'주 1회',
-          personalReason: adj.reason, feasReason: `직전 ${sessionKey === 'interval' ? '인터벌' : '역치'} 수행 결과를 기준으로 계산했어요(동일 훈련의 과거 수행 결과 반영).` };
-      }
-      if(!ability) return null;
-      const paceSec = estimateInitialIntervalPace(ability.avg400, goal) + paceOffset;
-      const sets = (info && info.weeklyFreq !== null) ? 4 : 3;
-      return { dist:'400m', paceSec, sets, rest:'2분', freq:'주 1회',
-        personalReason: `${hedge}현재 시험 기록의 평균 400m 페이스(약 ${Math.round(ability.avg400)}초)와 목표 페이스의 차이를 절반만 반영해서 보수적으로 설정했어요(목표 페이스를 그대로 강요하지 않음).${dataNote}`,
-        feasReason: `목표 페이스가 아니라 실제로 완주한 시험 기록을 기준으로 계산했고, 데이터가 없어 반복 횟수도 최소치로 설정했어요.` };
+  // ---- 목적×대체훈련 카드 1개 렌더링 ----
+  function variantCardHtml(purposeKey, variant, ability, goal, showEquivNote){
+    const card = buildVariantCard(purposeKey, variant, ability, goal);
+    if(!card) return '';
+    const { applied, recBase, tier } = card;
+    let distText, paceText, setsText, restText;
+    if(applied.structureType === 'continuous'){
+      distText = `${applied.distKm}km`;
+      paceText = applied.paceSecPerKm ? `${applied.paceSecPerKm}초/km` : applied.paceText;
+      setsText = '지속 1세트';
+      restText = '—';
+    } else {
+      distText = applied.dist;
+      paceText = `${applied.paceSec}초/${applied.dist}`;
+      setsText = `${applied.sets}세트`;
+      restText = applied.rest;
     }
+    const research = SESSION_RESEARCH[purposeKey];
+    const tierBtns = INTENSITY_TIERS.map(t => `<button type="button" class="btn ${t.key===tier?'':'btn-outline'}" style="margin-top:0; padding:9px 4px; font-size:11.5px;" onclick="pickTier('${purposeKey}','${variant.key}','${t.key}')">${t.label}</button>`).join('');
+    const adjustNote = applied.structureType === 'continuous'
+      ? '현재는 거리만 강도 단계별로 조정해요(연구에서 정해진 페이스 조정폭이 없어 페이스는 그대로 유지).'
+      : '현재는 반복(세트) 수만 강도 단계별로 조정해요(연구에서 정해진 페이스·회복시간 조정폭이 없어 그대로 유지).';
 
-    const intervalCal = calibrate('interval', intervalHist, 0);
-    const thresholdCal = calibrate('threshold', thresholdHist, 3); // 역치는 인터벌보다 여유 있게
+    return `
+      <div class="plan-day" style="margin-bottom:10px;">
+        <div class="plan-day-head"><span class="dow">${variant.key}. ${variant.name}</span><span class="kind">${recBase.source === 'history' ? '과거 수행 기반' : '초기 추정'}</span></div>
+        <div class="plan-day-body">
+          <div class="plan-detail-row"><span class="k">거리</span><span class="v">${distText}</span></div>
+          <div class="plan-detail-row"><span class="k">페이스/강도</span><span class="v">${paceText}</span></div>
+          <div class="plan-detail-row"><span class="k">세트/반복</span><span class="v">${setsText}</span></div>
+          <div class="plan-detail-row"><span class="k">회복</span><span class="v">${restText}</span></div>
+          <div class="form-grid" style="grid-template-columns:repeat(3,1fr); margin-top:12px;">${tierBtns}</div>
+          <p class="ai-caveat" style="margin-top:6px;">${adjustNote}</p>
+          ${recBase.reason ? `<p class="ai-text" style="margin-top:8px;"><b style="color:var(--ink-3); font-weight:600;">이 처방 이유</b><br>${recBase.reason}</p>` : ''}
+          <button class="btn" style="margin-top:10px;" onclick="logFromCard('${purposeKey}','${variant.key}')">이 훈련 완료 → 결과 입력</button>
+          <details class="collapsible" style="margin-top:10px; border-color:var(--line);">
+            <summary>근거 보기</summary>
+            <div class="collapsible-body">
+              <p class="ai-text" style="font-weight:600; margin-bottom:4px;">[훈련 유형 자체의 연구 근거]</p>
+              <span class="chip chip-mid">근거 수준 ${research.level} · ${research.levelLabel}</span>
+              <p class="ai-text" style="margin-top:8px;">${research.summary}</p>
+              ${research.sources.length ? `<div class="evi-sources">${research.sources.map(src => `· <a href="${src.url}" target="_blank" rel="noopener">${src.text}</a>`).join('<br>')}</div>` : ''}
+              ${showEquivNote ? `
+              <p class="ai-text" style="font-weight:600; margin:12px 0 4px;">[A/B 대체 훈련 간 동등성에 대한 근거]</p>
+              <span class="chip chip-mid">근거 수준 C~D · 제한적</span>
+              <p class="ai-text" style="margin-top:8px;">${VARIANT_EQUIV_NOTE[purposeKey]}</p>` : ''}
+              <p class="ai-text" style="font-weight:600; margin:12px 0 4px;">[이 처방(구체적 거리·페이스·세트수)에 대한 근거]</p>
+              <span class="chip chip-mid">근거 수준 E · 개인화 추론</span>
+              <p class="ai-text" style="margin-top:8px;">이 구체적인 수치까지 직접 검증한 연구는 없으며, 사용자의 기록과 입력한 데이터를 바탕으로 AI가 개인화하여 추정한 값이에요.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    `;
+  }
 
-    const picks = [];
-    picks.push({ key:'interval', role:'핵심 고강도 훈련', dist:intervalCal.dist, paceText:`${intervalCal.paceSec}초/${intervalCal.dist}`,
-      sets:`${intervalCal.sets}세트`, rest:intervalCal.rest, freq:intervalCal.freq, difficulty: intervalCal.sets<=3?'쉬움~보통':'보통',
-      personalReason: intervalCal.personalReason, feasReason: intervalCal.feasReason });
-    picks.push({ key:'threshold', role:'중강도 · 지속능력 훈련', dist: thresholdHist.length? thresholdCal.dist : '1.2~1.6km 지속',
-      paceText: thresholdHist.length ? `${thresholdCal.paceSec}초/${thresholdCal.dist}` : `${thresholdCal.paceSec}초/400m 환산`,
-      sets: thresholdHist.length ? `${thresholdCal.sets}세트` : '1세트(지속)', rest: thresholdCal.rest, freq: thresholdCal.freq, difficulty:'보통',
-      personalReason: thresholdCal.personalReason, feasReason: thresholdCal.feasReason });
-    const lowVolume = info && info.weeklyVolumeKm !== null && info.weeklyVolumeKm < 10;
-    picks.push({ key:'easy', role:'저강도 · 보조/회복 훈련', dist:'2~3km', paceText:'대화 가능한 편안한 강도', sets:'—', rest:'—', freq:'주 1~2회', difficulty:'쉬움',
-      personalReason: lowVolume ? '현재 주당 러닝량이 적어 유산소 기초를 먼저 다지는 게 우선일 수 있어요.' : '고강도 훈련 효과를 유지하고 부상 위험을 낮추려면 저강도 러닝으로 기초 유산소 능력을 함께 유지해야 해요.',
-      feasReason:'가장 낮은 강도의 훈련이라 현재 수준과 무관하게 수행 가능해요.' });
-
-    return picks;
+  // ---- 목적 블록(고강도/중강도/저강도) 렌더링 ----
+  function purposeBlockHtml(purposeKey, ability, goal, info){
+    const purpose = PURPOSES.find(p => p.key === purposeKey);
+    const variants = SESSION_VARIANTS[purposeKey];
+    const lowVolume = purposeKey === 'easy' && info && info.weeklyVolumeKm !== null && info.weeklyVolumeKm < 10;
+    const note = purposeKey === 'easy'
+      ? (lowVolume ? '현재 주당 러닝량이 적어 유산소 기초를 먼저 다지는 게 우선일 수 있어요.' : '고강도 훈련 효과를 유지하고 부상 위험을 낮추려면 저강도 러닝으로 기초 유산소 능력을 함께 유지해야 해요.')
+      : `주당 권장 횟수 ${purpose.freq} — 아래 중 하나만 골라서 수행하면 돼요. 두 개를 모두 하는 게 아니에요.`;
+    return `
+      <div class="ai-block">
+        <div class="ai-label">${purpose.label} · ${purpose.sub}</div>
+        <p class="ai-caveat" style="margin:-4px 0 12px;">${note}</p>
+        ${variants.map(v => variantCardHtml(purposeKey, v, ability, goal, variants.length > 1)).join('')}
+      </div>
+    `;
   }
 
   // ---- AI 훈련추천 화면 ----
@@ -1312,7 +1493,7 @@
       box.innerHTML = '<p class="empty-note">2km 기록을 하나만 입력해도 AI 훈련추천을 볼 수 있어요.</p>';
       return;
     }
-    const picks = buildRecommendations(best, goal, info);
+    const ability = getCurrentAbility(best);
 
     let html = `
       <div class="hero-row" style="margin-bottom:16px;">
@@ -1339,60 +1520,82 @@
     }
 
     // 이번 훈련 분석 + 다음 훈련 조정 (가장 최근 훈련 수행 기록 기준)
+    // 지속형(continuous) 세션(지속주·이지런)은 아직 과거 수행 기반 자동 조정을 적용하지 않으므로
+    // "다음 훈련 조정" 문구는 반복(interval) 타입 세션에서만 보여준다.
     const latestWorkout = getLatestWorkout();
     if(latestWorkout){
       const analysis = analyzeWorkoutEntry(latestWorkout);
-      const adj = buildAdjustment(latestWorkout, analysis);
+      const latestVariant = latestWorkout.purposeKey ? SESSION_VARIANTS[latestWorkout.purposeKey]?.find(v => v.key === latestWorkout.variantKey) : null;
+      const isContinuous = latestVariant?.structureType === 'continuous';
+      const adj = isContinuous ? null : buildAdjustment(latestWorkout, analysis);
       html += `
         <div class="ai-block">
           <div class="ai-label">이번 훈련 분석 (${latestWorkout.date})</div>
           <div class="ai-facts">
-            <div><span class="k">목표</span><span class="v">${latestWorkout.dist} × ${latestWorkout.targetSets} / ${latestWorkout.targetPaceSec}초 / 회복 ${latestWorkout.rest}</span></div>
+            <div><span class="k">목표</span><span class="v">${latestWorkout.dist} × ${latestWorkout.targetSets}${latestWorkout.targetPaceSec != null ? ' / ' + latestWorkout.targetPaceSec + '초' : ''} / 회복 ${latestWorkout.rest}</span></div>
             <div><span class="k">실제</span><span class="v">${analysis.completedSets !== null ? latestWorkout.dist+' × '+analysis.completedSets+' 완료' : (latestWorkout.result==='success'?'전체 완료':'중단')}</span></div>
             <div><span class="k">수행률</span><span class="v">${analysis.performanceRate !== null ? analysis.performanceRate+'%' : '정보 부족'}</span></div>
-            <div><span class="k">목표 대비 실제 페이스</span><span class="v">${analysis.paceDiff > 0 ? '+' : ''}${analysis.paceDiff.toFixed(1)}초</span></div>
+            <div><span class="k">목표 대비 실제 페이스</span><span class="v">${analysis.paceDiff !== null ? (analysis.paceDiff > 0 ? '+' : '') + analysis.paceDiff.toFixed(1) + '초' : '정보 없음'}</span></div>
             <div><span class="k">후반 페이스 저하</span><span class="v">${analysis.lateDrop !== null ? (analysis.lateDrop>0?'+':'')+analysis.lateDrop.toFixed(1)+'초' : '세트별 기록 없음'}</span></div>
           </div>
           <p class="ai-text" style="margin-top:8px;"><b style="color:var(--ink-3); font-weight:600;">판단</b><br>${analysis.pattern || (latestWorkout.result==='success' ? '전 구간 안정적으로 수행됐어요.' : '세트별 상세 기록이 없어 패턴을 특정하기 어려워요.')}</p>
-          <p class="ai-text" style="margin-top:8px;"><b style="color:var(--ink-3); font-weight:600;">다음 훈련 조정</b><br>${adj.reason}</p>
+          ${adj ? `<p class="ai-text" style="margin-top:8px;"><b style="color:var(--ink-3); font-weight:600;">다음 훈련 조정</b><br>${adj.reason}</p>` : '<p class="ai-caveat" style="margin-top:8px;">지속형 훈련(지속주·이지런)은 아직 과거 수행 기반 자동 조정을 적용하지 않아요. 위 훈련 카드의 강도 3단계로 직접 조절해주세요.</p>'}
         </div>
       `;
     }
 
-    html += picks.map((p) => {
-      const research = SESSION_RESEARCH[p.key];
-      return `
-        <div class="plan-day ${p.role === '핵심 고강도 훈련' ? 'plan-day--top' : ''}">
-          <div class="plan-day-head"><span class="dow">${p.role} · ${research.name}</span></div>
-          <div class="plan-day-body">
-            <div class="plan-detail-row"><span class="k">목적</span><span class="v" style="text-align:right; max-width:60%;">${research.purpose}</span></div>
-            <div class="plan-detail-row"><span class="k">거리</span><span class="v">${p.dist}</span></div>
-            <div class="plan-detail-row"><span class="k">페이스/강도</span><span class="v">${p.paceText}</span></div>
-            <div class="plan-detail-row"><span class="k">세트/반복</span><span class="v">${p.sets}</span></div>
-            <div class="plan-detail-row"><span class="k">회복</span><span class="v">${p.rest}</span></div>
-            <div class="plan-detail-row"><span class="k">주당 권장 횟수</span><span class="v">${p.freq}</span></div>
-            <p class="ai-text" style="margin:10px 0 4px;"><b style="color:var(--ink-3); font-weight:600;">왜 이 사용자에게 필요한가</b><br>${p.personalReason}</p>
-            <p class="ai-text" style="margin:6px 0;"><b style="color:var(--ink-3); font-weight:600;">예상 난이도</b> ${p.difficulty}</p>
-            <p class="ai-text" style="margin:6px 0;"><b style="color:var(--ink-3); font-weight:600;">현재 수준에서 수행 가능하다고 판단한 이유</b><br>${p.feasReason}</p>
-            <details class="collapsible" style="margin-top:10px; border-color:var(--line);">
-              <summary>근거 보기</summary>
-              <div class="collapsible-body">
-                <p class="ai-text" style="font-weight:600; margin-bottom:4px;">[훈련 유형 자체의 연구 근거]</p>
-                <span class="chip chip-mid">근거 수준 ${research.level} · ${research.levelLabel}</span>
-                <p class="ai-text" style="margin-top:8px;">${research.summary}</p>
-                ${research.sources.length ? `<div class="evi-sources">${research.sources.map(src => `· <a href="${src.url}" target="_blank" rel="noopener">${src.text}</a>`).join('<br>')}</div>` : ''}
-                <p class="ai-text" style="font-weight:600; margin:12px 0 4px;">[이 처방(구체적 거리·페이스·세트수)에 대한 근거]</p>
-                <span class="chip chip-mid">근거 수준 E · 개인화 추론</span>
-                <p class="ai-text" style="margin-top:8px;">${p.feasReason} 이 구체적인 수치까지 직접 검증한 연구는 없으며, 사용자의 기록과 입력한 데이터를 바탕으로 AI가 개인화하여 추정한 값이에요.</p>
-              </div>
-            </details>
-          </div>
-        </div>
-      `;
-    }).join('');
+    html += PURPOSES.map(p => purposeBlockHtml(p.key, ability, goal, info)).join('');
 
     box.innerHTML = html;
   }
+
+  // ---- 훈련 카드에서 강도 단계(가볍게/권장/강하게) 선택 ----
+  function pickTier(purposeKey, variantKey, tier){
+    selectedTier[tierKey(purposeKey, variantKey)] = tier;
+    renderAll();
+  }
+  window.pickTier = pickTier;
+
+  // ---- 훈련 카드의 "완료 → 결과 입력" 버튼: 현재 선택된 강도 그대로 입력폼에 채워넣는다 ----
+  function logFromCard(purposeKey, variantKey){
+    const best = getBestR2();
+    const ability = getCurrentAbility(best);
+    const variant = SESSION_VARIANTS[purposeKey].find(v => v.key === variantKey);
+    const card = buildVariantCard(purposeKey, variant, ability, run2kmGoal);
+    if(!card) return;
+    showMainTab('screen-train');
+    $('w-session').value = purposeKey + ':' + variantKey;
+    $('w-intensity').value = card.tier;
+    const applied = card.applied;
+    if(applied.structureType === 'continuous'){
+      $('w-dist').value = applied.distKm + 'km';
+      $('w-target-pace').value = applied.paceSecPerKm || '';
+      $('w-sets').value = 1;
+      $('w-rest').value = '—';
+    } else {
+      $('w-dist').value = applied.dist;
+      $('w-target-pace').value = applied.paceSec;
+      $('w-sets').value = applied.sets;
+      $('w-rest').value = applied.rest;
+    }
+    $('w-date').value = todayStr();
+    updateWFormLabels();
+    const panel = $('w-session').closest('.panel');
+    if(panel) panel.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+  window.logFromCard = logFromCard;
+
+  // 훈련 종류를 바꾸면 페이스 입력란 단위(초 vs 초/km)를 안내 라벨에 반영한다.
+  function updateWFormLabels(){
+    const [purposeKey, variantKey] = $('w-session').value.split(':');
+    const variant = SESSION_VARIANTS[purposeKey].find(v => v.key === variantKey);
+    const paceLabel = document.querySelector('label[for="w-target-pace"]');
+    const paceLabel2 = document.querySelector('label[for="w-actual-pace"]');
+    const perKm = variant.structureType === 'continuous' && purposeKey !== 'easy';
+    if(paceLabel) paceLabel.textContent = perKm ? '목표 페이스(초/km)' : '목표 페이스(초)';
+    if(paceLabel2) paceLabel2.textContent = perKm ? '실제 페이스(초/km, 평균)' : '실제 페이스(초, 평균)';
+  }
+  $('w-session').addEventListener('change', updateWFormLabels);
 
   // ---- 페이스 전략 ----
   function renderR2Strategy(best, goal){
@@ -1469,19 +1672,23 @@
       return;
     }
     box.innerHTML = list.map(w => {
-      const label = w.sessionKey === 'interval' ? '400m 인터벌' : '역치/지속주';
+      const purpose = PURPOSES.find(p => p.key === w.purposeKey);
+      const variant = w.purposeKey ? SESSION_VARIANTS[w.purposeKey]?.find(v => v.key === w.variantKey) : null;
+      const label = variant ? `${purpose.label} ${variant.key} · ${variant.name}` : (w.sessionKey === 'interval' ? '400m 인터벌' : '역치/지속주');
+      const tierLabel = w.intensityChoice ? (INTENSITY_TIERS.find(t => t.key === w.intensityChoice)?.label || '') : '';
       const resultText = w.result === 'success' ? '성공' : `실패 (${w.failedAtSet ? w.failedAtSet+'세트' : '중단'})`;
       const extras = [];
       if(w.rpe !== null && w.rpe !== undefined) extras.push(`RPE ${w.rpe}`);
       if(w.heartRateAvg !== null && w.heartRateAvg !== undefined) extras.push(`평균심박 ${w.heartRateAvg}`);
       if(w.heartRateMax !== null && w.heartRateMax !== undefined) extras.push(`최고심박 ${w.heartRateMax}`);
+      if(w.actualRestSec !== null && w.actualRestSec !== undefined) extras.push(`실제회복 ${w.actualRestSec}초`);
       return `
         <div class="recent-item">
           <div class="ri-left">
-            <div class="ri-date">${w.date}</div>
+            <div class="ri-date">${w.date}${tierLabel ? ' · ' + tierLabel : ''}</div>
             <div><span class="ri-type ri-type--casual">훈련 수행</span></div>
-            <div class="ri-main" style="margin-top:4px;">${label} · ${w.dist} × ${w.targetSets} / ${w.targetPaceSec}초</div>
-            <div class="ri-sub">실제 평균 ${w.actualPaceSec}초 · ${resultText}${extras.length ? ' · ' + extras.join(' · ') : ''}</div>
+            <div class="ri-main" style="margin-top:4px;">${label} · ${w.dist} × ${w.targetSets}${w.targetPaceSec != null ? ' / ' + w.targetPaceSec + '초' : ''}</div>
+            <div class="ri-sub">${w.actualPaceSec != null ? '실제 평균 ' + w.actualPaceSec + '초 · ' : ''}${resultText}${extras.length ? ' · ' + extras.join(' · ') : ''}</div>
           </div>
           <button class="del-btn" onclick="deleteR2Workout(${w.id})">✕</button>
         </div>
@@ -1545,20 +1752,22 @@
       return;
     }
 
-    const picks = buildRecommendations(best, run2kmGoal, run2kmInfo);
-    const top = picks[0];
-    const research = SESSION_RESEARCH[top.key];
+    const ability = getCurrentAbility(best);
+    const topVariant = SESSION_VARIANTS.interval[0]; // 400m 인터벌(A)을 대표로 보여준다. 대체훈련·강도 선택은 [훈련] 탭에서.
+    const card = buildVariantCard('interval', topVariant, ability, run2kmGoal, 'recommended');
+    if(!card){ box.innerHTML = '<p class="coach-empty">추천을 계산할 수 없어요.</p>'; return; }
+    const applied = card.applied;
     box.innerHTML = `
       <div class="plan-day plan-day--top">
-        <div class="plan-day-head"><span class="dow">오늘의 추천 훈련</span><span class="kind">${top.role}</span></div>
+        <div class="plan-day-head"><span class="dow">오늘의 추천 훈련</span><span class="kind">고강도 자극 · ${topVariant.key}안</span></div>
         <div class="plan-day-body">
-          <div class="name">${research.name}</div>
-          <div class="plan-detail-row"><span class="k">거리</span><span class="v">${top.dist}</span></div>
-          <div class="plan-detail-row"><span class="k">페이스/강도</span><span class="v">${top.paceText}</span></div>
-          <div class="plan-detail-row"><span class="k">세트/반복</span><span class="v">${top.sets}</span></div>
-          <div class="plan-detail-row"><span class="k">회복</span><span class="v">${top.rest}</span></div>
+          <div class="name">${topVariant.name}</div>
+          <div class="plan-detail-row"><span class="k">거리</span><span class="v">${applied.dist}</span></div>
+          <div class="plan-detail-row"><span class="k">페이스/강도</span><span class="v">${applied.paceSec}초/${applied.dist}</span></div>
+          <div class="plan-detail-row"><span class="k">세트/반복</span><span class="v">${applied.sets}세트</span></div>
+          <div class="plan-detail-row"><span class="k">회복</span><span class="v">${applied.rest}</span></div>
           <button class="btn" style="margin-top:12px;" onclick="goToTrainInput()">완료 → 결과 입력</button>
-          <p class="plan-purpose">아직 주간 계획이 없어서 AI 추천 훈련을 오늘의 훈련으로 보여드려요. [훈련] 탭에서 다른 추천도 볼 수 있어요.</p>
+          <p class="plan-purpose">아직 주간 계획이 없어서 AI 추천 훈련(권장 강도)을 오늘의 훈련으로 보여드려요. [훈련] 탭에서 대체 훈련(B안)과 강도 3단계(가볍게/권장/강하게)도 고를 수 있어요.</p>
         </div>
       </div>
     `;
@@ -1727,17 +1936,41 @@
     `;
   }
 
-  function sessionHistoryHtml(sessionKey, label){
-    const hist = getWorkoutHistory(sessionKey);
-    if(hist.length === 0) return `<p class="empty-note">${label} 수행 기록이 아직 없어요.</p>`;
+  // 동일한 훈련(같은 목적×대체훈련)의 과거 수행 결과를 요약 문장 하나로 만든다.
+  // 예: "82초×400m, 6세트, 성공, RPE 8"
+  function formatWorkoutSummary(w){
+    if(!w) return '—';
+    const a = analyzeWorkoutEntry(w);
+    const paceText = w.targetPaceSec != null ? `${w.actualPaceSec}초×${w.dist}` : `${w.dist}`;
+    const setsText = a.completedSets !== null ? `${a.completedSets}세트` : (w.result === 'success' ? '완료' : '중단');
+    const resultText = w.result === 'success' ? '성공' : '실패';
+    const rpeText = (w.rpe !== null && w.rpe !== undefined) ? `RPE ${w.rpe}` : null;
+    return [paceText, setsText, resultText, rpeText].filter(Boolean).join(', ');
+  }
+
+  // 같은 훈련(목적×대체훈련)의 "지난번 vs 이번" 비교 + 최근 이력 목록
+  function variantComparisonHtml(purposeKey, variant){
+    const hist = getVariantHistory(purposeKey, variant.key);
+    if(hist.length === 0) return `<p class="empty-note">${variant.name} 수행 기록이 아직 없어요.</p>`;
+    const [latest, prev] = hist;
     const rows = hist.slice(0,6).map(w => {
       const a = analyzeWorkoutEntry(w);
-      return `<div class="plan-detail-row"><span class="k">${w.date}</span><span class="v">${w.dist}×${w.targetSets}/${w.targetPaceSec}초 · ${a.performanceRate !== null ? a.performanceRate + '%' : '—'} · ${a.paceDiff > 0 ? '+' : ''}${a.paceDiff.toFixed(1)}초</span></div>`;
+      const paceStr = w.targetPaceSec != null ? `${w.dist}×${w.targetSets}/${w.targetPaceSec}초` : `${w.dist}`;
+      return `<div class="plan-detail-row"><span class="k">${w.date}</span><span class="v">${paceStr} · ${a.performanceRate !== null ? a.performanceRate + '%' : '—'} · ${a.paceDiff !== null ? (a.paceDiff>0?'+':'')+a.paceDiff.toFixed(1)+'초' : '—'}</span></div>`;
     }).join('');
-    return `<div class="panel"><div class="plan-day-body" style="padding:0;"><div class="name" style="margin-bottom:4px;">${label}</div>${rows}</div></div>`;
+    const compareHtml = prev ? `
+      <div class="ai-facts" style="margin-bottom:10px;">
+        <div><span class="k">지난번 (${prev.date})</span><span class="v" style="font-size:12px;">${formatWorkoutSummary(prev)}</span></div>
+        <div><span class="k">이번 (${latest.date})</span><span class="v" style="font-size:12px;">${formatWorkoutSummary(latest)}</span></div>
+      </div>` : '';
+    return `<div class="panel"><div class="plan-day-body" style="padding:0;"><div class="name" style="margin-bottom:4px;">${variant.key}. ${variant.name}</div>${compareHtml}${rows}</div></div>`;
   }
   function renderAnalyzeSessionHistory(){
-    $('analyze-session-history').innerHTML = sessionHistoryHtml('interval', '400m 인터벌') + sessionHistoryHtml('threshold', '역치/지속주');
+    let html = '';
+    PURPOSES.forEach(p => {
+      SESSION_VARIANTS[p.key].forEach(v => { html += variantComparisonHtml(p.key, v); });
+    });
+    $('analyze-session-history').innerHTML = html;
   }
 
   function renderAnalyzePace(){
@@ -1752,10 +1985,11 @@
         <div><span class="k">차이</span><span class="v">${Math.round(current400 - goal400)}초</span></div>`;
     }
     html += '</div>';
-    const intervalHist = getWorkoutHistory('interval');
-    if(intervalHist.length){
-      const recentPaces = intervalHist.slice(0,5).map(w => w.actualPaceSec);
-      html += `<p class="ai-text" style="margin-top:10px;">최근 인터벌 훈련 실제 평균 페이스: ${recentPaces.join('초, ')}초</p>`;
+    // 400m 인터벌(A)만 모아서 비교한다 — 800m 인터벌(B)은 페이스 단위가 달라 섞으면 오해를 줄 수 있다.
+    const intervalAHist = getVariantHistory('interval', 'A');
+    if(intervalAHist.length){
+      const recentPaces = intervalAHist.slice(0,5).map(w => w.actualPaceSec);
+      html += `<p class="ai-text" style="margin-top:10px;">최근 400m 인터벌 실제 평균 페이스: ${recentPaces.join('초, ')}초</p>`;
     }
     box.innerHTML = html;
   }

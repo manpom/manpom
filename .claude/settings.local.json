@@ -6,7 +6,16 @@
       "PowerShell(python --version)",
       "PowerShell(node --version)",
       "PowerShell(npx --version)",
-      "Bash(rm -f \"C:\\\\Users\\\\POM\\\\Desktop\\\\승지니\\\\.claude\\\\serve.ps1\" \"C:\\\\Users\\\\POM\\\\Desktop\\\\승지니\\\\.claude\\\\launch.json\"; ls -la \"C:\\\\Users\\\\POM\\\\Desktop\\\\승지니\\\\.claude\")"
+      "Bash(rm -f \"C:\\\\Users\\\\POM\\\\Desktop\\\\승지니\\\\.claude\\\\serve.ps1\" \"C:\\\\Users\\\\POM\\\\Desktop\\\\승지니\\\\.claude\\\\launch.json\"; ls -la \"C:\\\\Users\\\\POM\\\\Desktop\\\\승지니\\\\.claude\")",
+      "Bash(powershell -Command \"\\(Get-Content 'C:\\\\Users\\\\POM\\\\Desktop\\\\승지니\\\\index.html'\\).Count\")",
+      "WebSearch",
+      "WebFetch(domain:www.ncbi.nlm.nih.gov)",
+      "WebFetch(domain:pmc.ncbi.nlm.nih.gov)",
+      "WebFetch(domain:onlinelibrary.wiley.com)",
+      "Bash(rm -f \"C:\\\\Users\\\\POM\\\\Desktop\\\\승지니\\\\.claude\\\\serve.ps1\" \"C:\\\\Users\\\\POM\\\\Desktop\\\\승지니\\\\.claude\\\\launch.json\")",
+      "WebFetch(domain:garmonttactical.com)",
+      "WebFetch(domain:trahereus.com)",
+      "WebFetch(domain:www.police1.com)"
     ]
   }
 }
